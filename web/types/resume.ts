@@ -54,6 +54,7 @@ export interface ResumeData {
     education: ResumeEducation[];
     responsibilities: ResumeResponsibility[];
     skills: string[];
+    softSkills?: string[];
     achievements?: string[];
 }
 

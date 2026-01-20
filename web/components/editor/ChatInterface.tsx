@@ -33,6 +33,10 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    const [mode, setMode] = useState<'chat' | 'selection'>('chat');
+    const [uploadedData, setUploadedData] = useState<ResumeData | null>(null);
+    const [isRewriting, setIsRewriting] = useState(false);
+
     // Get current questions based on severity level
     const analysisQuestions = allQuestions[currentSeverity];
 
@@ -116,6 +120,8 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
         scrollToBottom();
     }, [messages]);
 
+    // ... existing state ...
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -134,13 +140,58 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
             if (!res.ok) throw new Error("Parse failed");
 
             const data = await res.json();
-            onResumeUpdate(data);
+            setUploadedData(data);
+            setMode('selection'); // Switch to mode selection
 
-            // 2. Active Analysis
+        } catch (err) {
+            console.error(err);
+            alert("Failed to parse resume PDF.");
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    };
+
+    const handleModeSelect = async (selectedMode: 'edit' | 'rewrite' | 'rewrite-rag') => {
+        if (!uploadedData) return;
+
+        if (selectedMode === 'edit') {
+            // Path A: Edit Original
+            finalizeUpload(uploadedData);
+        } else {
+            // Path B or C: Rewrite with AI (standard or RAG-enhanced)
+            setIsRewriting(true);
+            const endpoint = selectedMode === 'rewrite-rag' ? "/api/rewrite-rag" : "/api/rewrite";
+            try {
+                const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(uploadedData),
+                });
+
+                if (!res.ok) throw new Error("Rewriting failed");
+                const rewrittenData = await res.json();
+                finalizeUpload(rewrittenData);
+            } catch (err) {
+                console.error("Rewrite error:", err);
+                alert("Failed to rewrite resume. Falling back to original.");
+                finalizeUpload(uploadedData);
+            } finally {
+                setIsRewriting(false);
+            }
+        }
+    };
+
+    const finalizeUpload = async (data: ResumeData) => {
+        setMode('chat');
+        onResumeUpdate(data);
+
+        // 2. Active Analysis (Triggered after mode selection)
+        try {
             const analyzeRes = await fetch("/api/analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ resumeData: data }),
+                body: JSON.stringify(data),
             });
 
             if (analyzeRes.body) {
@@ -191,7 +242,10 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                     };
 
                     setAllQuestions(severityQuestions);
-                    setCurrentSeverity('critical');
+                    // Set initial severity to most severe available
+                    if (severityQuestions.critical.length > 0) setCurrentSeverity('critical');
+                    else if (severityQuestions.warning.length > 0) setCurrentSeverity('warning');
+                    else if (severityQuestions.niceToHave.length > 0) setCurrentSeverity('niceToHave');
                     setAnsweredQuestions(new Set());
 
                     // Show count summary
@@ -219,12 +273,103 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
 
         } catch (err) {
             console.error(err);
-            alert("Failed to parse resume PDF.");
-        } finally {
-            setIsUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
         }
     };
+
+    // ... existing suggestion handlers ...
+
+    if (mode === 'selection') {
+        return (
+            <div className="flex h-full flex-col bg-zinc-50 p-6 items-center justify-center">
+                <div className="max-w-md w-full space-y-6">
+                    <div className="text-center">
+                        <h2 className="text-2xl font-bold mb-2">Resume Parsed!</h2>
+                        <p className="text-zinc-600">How would you like to proceed?</p>
+                    </div>
+
+                    <div className="grid gap-4">
+                        {/* Option 1: Edit Original */}
+                        <button
+                            onClick={() => handleModeSelect('edit')}
+                            disabled={isRewriting}
+                            className="bg-white p-6 rounded-xl border-2 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 transition-all text-left group"
+                        >
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-zinc-100 rounded-lg group-hover:bg-zinc-200">
+                                    <Paperclip className="h-5 w-5 text-zinc-600" />
+                                </div>
+                                <h3 className="font-semibold text-lg">Use Current Content</h3>
+                            </div>
+                            <p className="text-sm text-zinc-500">
+                                Load your resume exactly as is. Best if you just want to fix formatting or headers.
+                            </p>
+                        </button>
+
+                        {/* Option 2: AI Rewrite */}
+                        <button
+                            onClick={() => handleModeSelect('rewrite')}
+                            disabled={isRewriting}
+                            className="bg-white p-6 rounded-xl border-2 border-blue-500 hover:bg-blue-50 transition-all text-left group relative overflow-hidden"
+                        >
+                            {isRewriting && (
+                                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 backdrop-blur-sm">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                                        <span className="text-sm font-medium text-blue-600">Rewriting your resume...</span>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-blue-100 rounded-lg text-blue-600 group-hover:bg-blue-200">
+                                    <Lightbulb className="h-5 w-5" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold text-lg text-blue-700">Create Perfect Resume</h3>
+                                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">RECOMMENDED</span>
+                                </div>
+                            </div>
+                            <p className="text-sm text-zinc-600 mb-2">
+                                AI will rewrite your bullets to be <strong>punchy, impactful, and professional</strong> using the STAR method.
+                            </p>
+                            <ul className="text-xs text-zinc-500 space-y-1 list-disc list-inside">
+                                <li>Fixes grammar & tone</li>
+                                <li>Adds strong action verbs</li>
+                                <li>Structuring for readability</li>
+                            </ul>
+                        </button>
+
+                        {/* Option 3: RAG-Enhanced Rewrite (Experimental) */}
+                        <button
+                            onClick={() => handleModeSelect('rewrite-rag')}
+                            disabled={isRewriting}
+                            className="bg-white p-4 rounded-xl border-2 border-purple-400 hover:bg-purple-50 transition-all text-left group relative overflow-hidden"
+                        >
+                            {isRewriting && (
+                                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 backdrop-blur-sm">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                                        <span className="text-sm font-medium text-purple-600">Searching examples & rewriting...</span>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex items-center gap-3 mb-1">
+                                <div className="p-2 bg-purple-100 rounded-lg text-purple-600 group-hover:bg-purple-200">
+                                    <Lightbulb className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold text-purple-700">RAG-Enhanced Rewrite</h3>
+                                    <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">EXPERIMENTAL</span>
+                                </div>
+                            </div>
+                            <p className="text-xs text-zinc-500">
+                                Uses vector search to find similar high-quality bullets as examples before rewriting.
+                            </p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // Handle answering a specific question
     const handleQuestionAnswer = async (answer: string, question: AnalysisQuestion) => {
@@ -450,71 +595,59 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                     {/* Question Cards */}
                     {analysisQuestions.length > 0 && (
                         <div className="space-y-3 mt-4">
-                            {/* Severity Header */}
-                            <div className="flex items-center gap-2 mb-2">
-                                <span className={`text-xs font-semibold px-2 py-1 rounded ${currentSeverity === 'critical' ? 'bg-red-100 text-red-700' :
-                                        currentSeverity === 'warning' ? 'bg-amber-100 text-amber-700' :
-                                            'bg-green-100 text-green-700'
-                                    }`}>
-                                    {currentSeverity === 'critical' ? '🔴 Critical Issues' :
-                                        currentSeverity === 'warning' ? '🟡 Warnings' :
-                                            '🟢 Nice to Have'}
-                                </span>
-                                <span className="text-xs text-zinc-400">
-                                    {analysisQuestions.length} item{analysisQuestions.length > 1 ? 's' : ''}
-                                </span>
+                            {/* Analysis Tabs */}
+                            <div className="flex p-1 bg-zinc-100 rounded-lg mb-4 gap-1">
+                                {(['critical', 'warning', 'niceToHave'] as const).map(s => {
+                                    const count = allQuestions[s].length;
+                                    if (count === 0) return null;
+
+                                    const isActive = currentSeverity === s;
+                                    return (
+                                        <button
+                                            key={s}
+                                            onClick={() => setCurrentSeverity(s)}
+                                            className={`
+                                            flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-2
+                                            ${isActive ? 'bg-white shadow text-black' : 'text-zinc-500 hover:bg-zinc-200'}
+                                        `}
+                                        >
+                                            <span>
+                                                {s === 'critical' && '🔴 Critical'}
+                                                {s === 'warning' && '🟡 Warnings'}
+                                                {s === 'niceToHave' && '🟢 Tips'}
+                                            </span>
+                                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isActive ? 'bg-zinc-100' : 'bg-zinc-300/50'}`}>
+                                                {count}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
                             </div>
 
-                            {analysisQuestions.map((q, idx) => {
-                                const questionKey = `${q.experienceIndex}-${q.bulletIndex}`;
-                                return (
-                                    <QuestionCard
-                                        key={questionKey}
-                                        question={q}
-                                        questionNumber={idx + 1}
-                                        onSubmit={handleQuestionAnswer}
-                                        isAnswered={answeredQuestions.has(questionKey)}
-                                        pendingSuggestion={pendingSuggestion}
-                                        onApplySuggestion={handleApplySuggestion}
-                                        onDismissSuggestion={handleDismissSuggestion}
-                                    />
-                                );
-                            })}
-
-                            {/* Show next severity level button */}
-                            {currentSeverity === 'critical' && allQuestions.warning.length > 0 && (
-                                <Button
-                                    variant="outline"
-                                    className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
-                                    onClick={() => setCurrentSeverity('warning')}
-                                >
-                                    <AlertTriangle className="h-4 w-4 mr-2" />
-                                    Show {allQuestions.warning.length} Warning{allQuestions.warning.length > 1 ? 's' : ''}
-                                </Button>
-                            )}
-
-                            {currentSeverity === 'warning' && allQuestions.niceToHave.length > 0 && (
-                                <Button
-                                    variant="outline"
-                                    className="w-full border-green-300 text-green-700 hover:bg-green-50"
-                                    onClick={() => setCurrentSeverity('niceToHave')}
-                                >
-                                    <Lightbulb className="h-4 w-4 mr-2" />
-                                    Show {allQuestions.niceToHave.length} Nice-to-Have{allQuestions.niceToHave.length > 1 ? 's' : ''}
-                                </Button>
-                            )}
-
-                            {/* Back button for lower severity levels */}
-                            {currentSeverity !== 'critical' && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-zinc-500"
-                                    onClick={() => setCurrentSeverity(currentSeverity === 'niceToHave' ? 'warning' : 'critical')}
-                                >
-                                    ← Back to {currentSeverity === 'niceToHave' ? 'Warnings' : 'Critical'}
-                                </Button>
-                            )}
+                            {/* Question List */}
+                            <div className="space-y-4">
+                                {analysisQuestions.length === 0 ? (
+                                    <div className="text-center py-8 text-zinc-500 text-sm">
+                                        <p>No issues found in this category! 🎉</p>
+                                    </div>
+                                ) : (
+                                    analysisQuestions.map((q, idx) => {
+                                        const questionKey = `${q.experienceIndex}-${q.bulletIndex}-${idx}`;
+                                        return (
+                                            <QuestionCard
+                                                key={questionKey}
+                                                question={q}
+                                                questionNumber={idx + 1}
+                                                onSubmit={handleQuestionAnswer}
+                                                isAnswered={answeredQuestions.has(questionKey)}
+                                                pendingSuggestion={pendingSuggestion}
+                                                onApplySuggestion={handleApplySuggestion}
+                                                onDismissSuggestion={handleDismissSuggestion}
+                                            />
+                                        );
+                                    })
+                                )}
+                            </div>
                         </div>
                     )}
 

@@ -41,7 +41,8 @@ def parse_resume(file_path):
             "education": [ { "id": "uuid", "school": "", "degree": "", "field": "", "startDate": "", "endDate": "", "grade": "" } ],
             "responsibilities": [ { "id": "uuid", "title": "", "organization": "", "location": "", "startDate": "", "endDate": "", "description": "" } ],
             "achievements": [ "Achievement 1 with details", "Achievement 2 with details" ],
-            "skills": []
+            "skills": [],
+            "softSkills": []
         }
         
         SECTION HEADER MAPPINGS - Map these variations to our fields:
@@ -72,15 +73,110 @@ def parse_resume(file_path):
         - "Positions of Responsibility", "Leadership", "Extracurriculars"
         - "Volunteer Work", "Community Involvement", "Activities"
         - "Leadership Experience", "Organizational Roles"
+
+        SOFT SKILLS (put in "softSkills"):
+        - "Soft Skills", "Interpersonal Skills", "Professional Attributes"
+        - "Languages" (if spoken languages), "Communication"
         
-        Rules:
-        - If a field is missing, use empty string or empty list. 
-        - Do not invent data.
-        - IMPORTANT for experience:
-          * "role" = the job title (e.g. "Founders Office Intern", "Software Engineer", "Marketing Manager")
-          * "company" = the company/startup name (e.g. "Pinch", "Google", "StampMyVisa")
-          * Do NOT swap these - role is what you DO, company is WHERE you work
-        - Return ONLY the raw JSON string. No markdown formatting.
+        You are an expert Resume Parser. 
+        Your goal is to extract structured data from the resume text provided below with 100% precision.
+        
+        STRICT JSON OUTPUT FORMAT:
+        {
+            "profile": { 
+                "name": "Full Name", 
+                "email": "email@example.com", 
+                "phone": "+1-555-0100", 
+                "linkedin": "linkedin.com/in/...", 
+                "github": "github.com/...", 
+                "website": "portfolio.com", 
+                "summary": "Brief professional summary if present" 
+            },
+            "experience": [ 
+                { 
+                    "id": "uuid", 
+                    "company": "Company Name", 
+                    "role": "Job Title", 
+                    "startDate": "MM/YYYY or YYYY", 
+                    "endDate": "MM/YYYY, YYYY or Present", 
+                    "location": "City, Country", 
+                    "bullets": ["Action verb + context + result", "Another bullet"] 
+                } 
+            ],
+            "projects": [ 
+                { 
+                    "id": "uuid", 
+                    "name": "Project Name", 
+                    "description": "Brief description", 
+                    "technologies": ["React", "Python"], 
+                    "link": "github/demo link", 
+                    "bullets": ["Key contribution 1", "Key contribution 2"] 
+                } 
+            ],
+            "education": [ 
+                { 
+                    "id": "uuid", 
+                    "school": "University Name", 
+                    "degree": "Degree Name (e.g. BS Computer Science)", 
+                    "field": "Field of Study", 
+                    "startDate": "Year", 
+                    "endDate": "Year", 
+                    "grade": "GPA/Grade" 
+                } 
+            ],
+            "responsibilities": [ 
+                { 
+                    "id": "uuid", 
+                    "title": "Role Title", 
+                    "organization": "Organization Name", 
+                    "location": "", 
+                    "startDate": "", 
+                    "endDate": "", 
+                    "description": "Brief description of duties" 
+                } 
+            ],
+            "achievements": [ 
+                "Winner of X Hackathon (2023)", 
+                "AWS Certified Solutions Architect" 
+            ],
+            "skills": ["Python", "React"], 
+            "softSkills": ["Leadership", "Communication", "Problem Solving"]
+        }
+        
+        CRITICAL RULES - DO NOT IGNORE:
+        1. **NO HALLUCINATIONS**: If a field is not explicitly present in the text, return an empty string "" or empty list []. Do NOT invent dates, emails, or locations.
+        2. **ROLE vs COMPANY**: 
+           - 'role' is the Job Title (e.g., "Software Engineer", "Product Manager").
+           - 'company' is the Organization/Employer (e.g., "Google", "Startup Inc").
+           - Do not swap these.
+        3. **DATES**: Keep original format. If "Present" or "Current" is used, keep it as "Present".
+        4. **SKILLS vs SOFT SKILLS**: 
+           - **skills**: Technical hard skills ONLY (e.g. Python, SQL, Photoshop, AWS, Spanish).
+           - **softSkills**: Interpersonal or abstract skills (e.g. Leadership, Teamwork, Communication, Adaptability).
+        5. **BULLETS**: 
+           - Split long paragraphs into individual executable bullet points.
+           - If a section has no bullets but has a paragraph, split the paragraph into logical sentences/bullets.
+        
+        SECTION MAPPING GUIDE:
+        - "Work Experience", "Professional Experience", "History", "Employment" -> **experience**
+        - "Projects", "Technical Projects", "Side Projects" -> **projects**
+        - "Education", "Academic Background", "Scholastic Achievements" -> **education**
+        - "Leadership", "Positions of Responsibility", "Volunteering" -> **responsibilities**
+        - "Skills", "Technical Skills", "Stack" -> **skills**
+        - "Achievements", "Awards", "Certifications", "Honors" -> **achievements**
+
+        URL DETECTION RULES (profile section):
+        6. **linkedin**: Look for URLs containing "linkedin.com/in/" - extract the full profile URL.
+        7. **github**: Look for URLs containing "github.com/" - extract the full profile URL (not repo links).
+        8. **website**: Look for personal portfolio URLs, personal websites, or any other relevant links (not LinkedIn/GitHub).
+           - Common patterns: behance.net, dribbble.com, portfolio sites, personal domains with names.
+        9. If a URL is displayed as anchor text only (e.g., just "LinkedIn" or "GitHub"), still extract if possible or note only.
+        10. URLs may appear in the header/contact section or scattered in the resume text.
+
+        OUTPUT INSTRUCTIONS:
+        - Return ONLY valid JSON.
+        - Do not include markdown formatting (like ```json ... ```).
+        - Do not include any conversational text.
         """
 
         completion = client.chat.completions.create(

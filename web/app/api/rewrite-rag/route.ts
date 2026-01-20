@@ -6,13 +6,11 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
-        // Locate python script
-        const scriptPath = path.join(process.cwd(), '..', 'analyzer.py');
-
-        // serialize the full resume JSON to pass as arg
+        // Use the RAG-enhanced rewriter
+        const scriptPath = path.join(process.cwd(), '..', 'rewriter_rag.py');
         const resumeJsonStr = JSON.stringify(body);
 
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const pythonProcess = spawn('python', [scriptPath, resumeJsonStr]);
 
             let dataString = '';
@@ -28,9 +26,9 @@ export async function POST(req: NextRequest) {
 
             pythonProcess.on('close', (code) => {
                 if (code !== 0) {
-                    console.error('Analyzer script failed:', errorString);
+                    console.error('RAG Rewriter script failed:', errorString);
                     resolve(NextResponse.json(
-                        { error: 'Analysis failed', details: errorString },
+                        { error: 'Rewriting failed', details: errorString },
                         { status: 500 }
                     ));
                     return;
@@ -46,7 +44,7 @@ export async function POST(req: NextRequest) {
                 } catch (e) {
                     console.error('Failed to parse Python output:', dataString);
                     resolve(NextResponse.json(
-                        { error: 'Invalid response from analyzer', raw: dataString },
+                        { error: 'Invalid response from rewriter', raw: dataString },
                         { status: 500 }
                     ));
                 }
