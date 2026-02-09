@@ -8,7 +8,7 @@ import { spawn } from "child_process";
 // Force Rebuild
 export const runtime = "nodejs"; // Required for fs/processes
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
     let tempFilePath = "";
 
     try {
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
         // Create a temp output path
         const tempOutputPath = join(process.cwd(), `temp_out_${Date.now()}.json`);
 
-        return new Promise((resolve) => {
+        return new Promise<NextResponse>((resolve) => {
             // Pass tempOutputPath as 2nd argument
             const pythonProcess = spawn("python", [scriptPath, tempFilePath, tempOutputPath]);
 

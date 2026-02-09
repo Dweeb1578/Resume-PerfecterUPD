@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { writeFile, readFile, unlink } from 'fs/promises';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
         const body = await req.json();
 
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
         // Create temp output path
         const tempOutputPath = path.join(process.cwd(), `temp_rewrite_${Date.now()}.json`);
 
-        return new Promise((resolve) => {
+        return new Promise<NextResponse>((resolve) => {
             // Pass output path as argument
             const pythonProcess = spawn('python', [scriptPath, tempOutputPath]);
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
         const body = await req.json();
 
@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
         const scriptPath = path.join(process.cwd(), '..', 'rewriter_rag.py');
         const resumeJsonStr = JSON.stringify(body);
 
-        return new Promise((resolve) => {
+        return new Promise<NextResponse>((resolve) => {
             // Use stdin to pass JSON to avoid Windows shell escaping issues
             const pythonProcess = spawn('python', [scriptPath]);
 

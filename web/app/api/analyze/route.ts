@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
         const body = await req.json();
 
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
         // serialize the full resume JSON to pass as arg
         const resumeJsonStr = JSON.stringify(body);
 
-        return new Promise((resolve, reject) => {
+        return new Promise<NextResponse>((resolve, reject) => {
             const pythonProcess = spawn('python', [scriptPath, resumeJsonStr]);
 
             let dataString = '';
