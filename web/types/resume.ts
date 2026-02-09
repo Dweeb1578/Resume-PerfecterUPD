@@ -16,6 +16,7 @@ export interface ResumeExperience {
     endDate: string;
     location: string;
     bullets: string[];
+    hidden?: boolean;
 }
 
 export interface ResumeProject {
@@ -24,7 +25,10 @@ export interface ResumeProject {
     description: string;
     technologies: string[];
     link?: string;
+    startDate?: string;
+    endDate?: string;
     bullets: string[];
+    hidden?: boolean;
 }
 
 export interface ResumeEducation {
@@ -35,6 +39,7 @@ export interface ResumeEducation {
     startDate: string;
     endDate: string;
     grade?: string;
+    hidden?: boolean;
 }
 
 export interface ResumeResponsibility {
@@ -45,7 +50,10 @@ export interface ResumeResponsibility {
     startDate: string;
     endDate: string;
     description: string;
+    hidden?: boolean;
 }
+
+export type SectionType = 'education' | 'experience' | 'responsibilities' | 'projects' | 'achievements' | 'skills';
 
 export interface ResumeData {
     profile: ResumeProfile;
@@ -56,6 +64,7 @@ export interface ResumeData {
     skills: string[];
     softSkills?: string[];
     achievements?: string[];
+    sectionOrder?: SectionType[];
 }
 
 export const initialResumeState: ResumeData = {

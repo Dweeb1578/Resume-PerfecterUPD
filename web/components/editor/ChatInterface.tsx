@@ -37,18 +37,39 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
     const [uploadedData, setUploadedData] = useState<ResumeData | null>(null);
     const [isRewriting, setIsRewriting] = useState(false);
 
-    // Get current questions based on severity level
-    const analysisQuestions = allQuestions[currentSeverity];
+    // Get current questions based on severity level, filtering out hidden experiences
+    const analysisQuestions = allQuestions[currentSeverity].filter(q => {
+        // If the question references an experience, check if it's hidden
+        if (q.experienceId && resumeData?.experience) {
+            const exp = resumeData.experience.find(e => e.id === q.experienceId);
+            if (exp?.hidden) return false;
+        }
+        return true;
+    });
 
     // Parse suggestion from message content
     const parseSuggestion = (content: string): { suggestion: Suggestion | null; textContent: string } => {
-        const jsonMatch = content.match(/\{"type":"suggestion"[^}]+\}/g);
-        if (jsonMatch) {
+        // Look for JSON starting with {"type":"suggestion" - use a more robust approach
+        const startIdx = content.indexOf('{"type":"suggestion"');
+        if (startIdx !== -1) {
+            // Find matching closing brace by counting braces
+            let braceCount = 0;
+            let endIdx = startIdx;
+            for (let i = startIdx; i < content.length; i++) {
+                if (content[i] === '{') braceCount++;
+                if (content[i] === '}') braceCount--;
+                if (braceCount === 0) {
+                    endIdx = i + 1;
+                    break;
+                }
+            }
+            const jsonStr = content.substring(startIdx, endIdx);
             try {
-                const suggestion = JSON.parse(jsonMatch[0]) as Suggestion;
-                const textContent = content.replace(jsonMatch[0], '').trim();
+                const suggestion = JSON.parse(jsonStr) as Suggestion;
+                const textContent = (content.substring(0, startIdx) + content.substring(endIdx)).trim();
                 return { suggestion, textContent };
             } catch (e) {
+                console.error('Failed to parse suggestion JSON:', e, jsonStr);
                 return { suggestion: null, textContent: content };
             }
         }
@@ -62,20 +83,34 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
         const updatedData = JSON.parse(JSON.stringify(resumeData)) as ResumeData;
         let replaced = false;
 
-        // Use the indices provided by the AI (if available)
-        const expIdx = pendingSuggestion.experienceIndex ?? 0;
-        const bulletIdx = pendingSuggestion.bulletIndex ?? 0;
+        // Try to find by experienceId first (stable reference after drag-drop)
+        if (pendingSuggestion.experienceId) {
+            const expIdx = updatedData.experience?.findIndex(e => e.id === pendingSuggestion.experienceId);
+            if (expIdx !== undefined && expIdx >= 0) {
+                const exp = updatedData.experience[expIdx];
+                // Find bullet by original text (in case bullets were reordered)
+                const bulletIdx = exp.bullets?.findIndex(b => b === pendingSuggestion.original);
+                if (bulletIdx !== undefined && bulletIdx >= 0) {
+                    exp.bullets[bulletIdx] = pendingSuggestion.suggested;
+                    replaced = true;
+                }
+            }
+        }
 
-        // Check if the indices are valid
-        if (
-            updatedData.experience &&
-            updatedData.experience.length > expIdx &&
-            updatedData.experience[expIdx].bullets &&
-            updatedData.experience[expIdx].bullets.length > bulletIdx
-        ) {
-            // Replace the specific bullet
-            updatedData.experience[expIdx].bullets[bulletIdx] = pendingSuggestion.suggested;
-            replaced = true;
+        // Fallback: try by experienceIndex and bulletIndex if ID lookup failed
+        if (!replaced) {
+            const expIdx = pendingSuggestion.experienceIndex ?? 0;
+            const bulletIdx = pendingSuggestion.bulletIndex ?? 0;
+
+            if (
+                updatedData.experience &&
+                updatedData.experience.length > expIdx &&
+                updatedData.experience[expIdx].bullets &&
+                updatedData.experience[expIdx].bullets.length > bulletIdx
+            ) {
+                updatedData.experience[expIdx].bullets[bulletIdx] = pendingSuggestion.suggested;
+                replaced = true;
+            }
         } else if (updatedData.experience && updatedData.experience.length > 0) {
             // Fallback: add to the first experience if indices are invalid
             updatedData.experience[0].bullets = [
@@ -137,15 +172,18 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                 body: formData,
             });
 
-            if (!res.ok) throw new Error("Parse failed");
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.error || errorData.details || "Upload failed");
+            }
 
             const data = await res.json();
             setUploadedData(data);
             setMode('selection'); // Switch to mode selection
 
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert("Failed to parse resume PDF.");
+            alert(`Failed to parse resume: ${err.message || 'Unknown error'}`);
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = "";
@@ -169,12 +207,15 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                     body: JSON.stringify(uploadedData),
                 });
 
-                if (!res.ok) throw new Error("Rewriting failed");
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    throw new Error(errorData.error || errorData.details || "Rewriting failed");
+                }
                 const rewrittenData = await res.json();
                 finalizeUpload(rewrittenData);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Rewrite error:", err);
-                alert("Failed to rewrite resume. Falling back to original.");
+                alert(`Failed to rewrite resume: ${err.message || 'Unknown error'}`);
                 finalizeUpload(uploadedData);
             } finally {
                 setIsRewriting(false);
@@ -225,13 +266,20 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
 
                     // Helper to add severity to questions
                     const addSeverity = (questions: any[], severity: Severity): AnalysisQuestion[] => {
-                        return (questions || []).map((q: any) => ({
-                            experienceIndex: q.experienceIndex ?? 0,
-                            bulletIndex: q.bulletIndex ?? 0,
-                            question: q.question,
-                            issue: q.issue,
-                            severity
-                        }));
+                        return (questions || []).map((q: any) => {
+                            const expIdx = q.experienceIndex ?? 0;
+                            const bulletIdx = q.bulletIndex ?? 0;
+                            const exp = data?.experience?.[expIdx];
+                            return {
+                                experienceIndex: expIdx,
+                                bulletIndex: bulletIdx,
+                                experienceId: exp?.id,  // Store stable ID
+                                originalBullet: exp?.bullets?.[bulletIdx],  // Store original text
+                                question: q.question,
+                                issue: q.issue,
+                                severity
+                            };
+                        });
                     };
 
                     // Extract questions by severity
@@ -381,8 +429,14 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
         };
         setMessages(prev => [...prev, userMessage]);
 
-        // Mark question as answered
-        const questionKey = `${question.experienceIndex}-${question.bulletIndex}`;
+        // Mark question as answered - find the index to create matching key
+        const questions = allQuestions[currentSeverity];
+        const idx = questions.findIndex(q =>
+            q.experienceIndex === question.experienceIndex &&
+            q.bulletIndex === question.bulletIndex &&
+            q.question === question.question
+        );
+        const questionKey = `${question.experienceIndex}-${question.bulletIndex}-${idx}`;
         setAnsweredQuestions(prev => new Set([...prev, questionKey]));
 
         // Get the original bullet text from resume data
@@ -576,8 +630,22 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
             <div className="flex-1 p-4 bg-zinc-50 overflow-y-auto">
                 <div className="space-y-4">
                     {messages.map((m: any) => {
-                        // Parse out JSON from display
-                        const displayContent = m.content.replace(/\{"type":"suggestion"[^}]+\}/g, '').trim();
+                        // Parse out JSON from display - use robust brace matching
+                        let displayContent = m.content;
+                        const startIdx = displayContent.indexOf('{"type":"suggestion"');
+                        if (startIdx !== -1) {
+                            let braceCount = 0;
+                            let endIdx = startIdx;
+                            for (let i = startIdx; i < displayContent.length; i++) {
+                                if (displayContent[i] === '{') braceCount++;
+                                if (displayContent[i] === '}') braceCount--;
+                                if (braceCount === 0) {
+                                    endIdx = i + 1;
+                                    break;
+                                }
+                            }
+                            displayContent = (displayContent.substring(0, startIdx) + displayContent.substring(endIdx)).trim();
+                        }
                         if (!displayContent && m.role === 'assistant') return null;
 
                         return (
@@ -593,7 +661,7 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                     })}
 
                     {/* Question Cards */}
-                    {analysisQuestions.length > 0 && (
+                    {(allQuestions.critical.length > 0 || allQuestions.warning.length > 0 || allQuestions.niceToHave.length > 0) && (
                         <div className="space-y-3 mt-4">
                             {/* Analysis Tabs */}
                             <div className="flex p-1 bg-zinc-100 rounded-lg mb-4 gap-1">
@@ -633,6 +701,36 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                                 ) : (
                                     analysisQuestions.map((q, idx) => {
                                         const questionKey = `${q.experienceIndex}-${q.bulletIndex}-${idx}`;
+
+                                        // Calculate dynamic label based on current resume state
+                                        let contextLabel = "";
+                                        if (resumeData?.experience) {
+                                            // 1. Try finding by ID
+                                            let currentExpIdx = -1;
+                                            if (q.experienceId) {
+                                                currentExpIdx = resumeData.experience.findIndex(e => e.id === q.experienceId);
+                                            }
+
+                                            // 2. Fallback to index if ID not found or not set
+                                            if (currentExpIdx === -1) {
+                                                currentExpIdx = q.experienceIndex;
+                                            }
+
+                                            // 3. Construct label if experience exists
+                                            const exp = resumeData.experience[currentExpIdx];
+                                            if (exp) {
+                                                let currentBulletIdx = q.bulletIndex;
+                                                // Try finding bullet by text
+                                                if (q.originalBullet && exp.bullets) {
+                                                    const bIdx = exp.bullets.indexOf(q.originalBullet);
+                                                    if (bIdx !== -1) currentBulletIdx = bIdx;
+                                                }
+
+                                                const jobTitle = exp.role || exp.company || `Job #${currentExpIdx + 1}`;
+                                                contextLabel = `${jobTitle}, Bullet #${currentBulletIdx + 1}`;
+                                            }
+                                        }
+
                                         return (
                                             <QuestionCard
                                                 key={questionKey}
@@ -643,6 +741,7 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                                                 pendingSuggestion={pendingSuggestion}
                                                 onApplySuggestion={handleApplySuggestion}
                                                 onDismissSuggestion={handleDismissSuggestion}
+                                                contextLabel={contextLabel}
                                             />
                                         );
                                     })

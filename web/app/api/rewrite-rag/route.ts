@@ -11,7 +11,8 @@ export async function POST(req: NextRequest) {
         const resumeJsonStr = JSON.stringify(body);
 
         return new Promise((resolve) => {
-            const pythonProcess = spawn('python', [scriptPath, resumeJsonStr]);
+            // Use stdin to pass JSON to avoid Windows shell escaping issues
+            const pythonProcess = spawn('python', [scriptPath]);
 
             let dataString = '';
             let errorString = '';
@@ -23,6 +24,10 @@ export async function POST(req: NextRequest) {
             pythonProcess.stderr.on('data', (data) => {
                 errorString += data.toString();
             });
+
+            // Write JSON to stdin and close it
+            pythonProcess.stdin.write(resumeJsonStr);
+            pythonProcess.stdin.end();
 
             pythonProcess.on('close', (code) => {
                 if (code !== 0) {

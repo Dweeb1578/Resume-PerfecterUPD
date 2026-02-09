@@ -1,0 +1,4 @@
+{
+  "error": "Extra data: line 8 column 91 (char 1051)",
+  "trace": "Traceback (most recent call last):\n  File \"D:\\Projects\\Resume-PerfecterUPD\\rewriter.py\", line 74, in rewrite_resume\n    parsed_json = json.loads(result)\n  File \"C:\\Users\\Vrishab\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\json\\__init__.py\", line 352, in loads\n    return _default_decoder.decode(s)\n           ~~~~~~~~~~~~~~~~~~~~~~~^^^\n  File \"C:\\Users\\Vrishab\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\json\\decoder.py\", line 348, in decode\n    raise JSONDecodeError(\"Extra data\", s, end)\njson.decoder.JSONDecodeError: Extra data: line 8 column 91 (char 1051)\n"
+}

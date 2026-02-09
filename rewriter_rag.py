@@ -9,8 +9,11 @@ from pinecone import Pinecone
 
 # Load environment variables
 script_dir = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.join(script_dir, "web", ".env")
-load_dotenv(dotenv_path=env_path)
+web_env_path = os.path.join(script_dir, "web", ".env")
+root_env_path = os.path.join(script_dir, ".env")
+
+load_dotenv(dotenv_path=web_env_path)
+load_dotenv(dotenv_path=root_env_path)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -104,6 +107,10 @@ def rewrite_with_rag(json_str):
         2. **KEEP STRUCTURE**: Return the EXACT same JSON structure.
         3. **PROFESSIONAL TONE**: Use formal, punchy professional English.
         4. **SUMMARY**: Rewrite "profile.summary" to be a compelling 2-sentence elevator pitch.
+        5. **DEDUPLICATION**: If the same role/organization appears in BOTH "experience" AND "responsibilities", REMOVE IT from one section:
+           - Keep PAID work, internships, and jobs in "experience" only.
+           - Keep UNPAID roles, volunteer positions, club activities, and student organizations in "responsibilities" only.
+           - Never output the same role twice.
         
         OUTPUT: Strict valid JSON only.
         """
@@ -137,7 +144,9 @@ def rewrite_with_rag(json_str):
         print(json.dumps(error_info))
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No JSON argument provided"}))
+    # Read JSON from stdin to avoid Windows shell escaping issues
+    json_input = sys.stdin.read()
+    if not json_input.strip():
+        print(json.dumps({"error": "No JSON input provided via stdin"}))
     else:
-        rewrite_with_rag(sys.argv[1])
+        rewrite_with_rag(json_input)

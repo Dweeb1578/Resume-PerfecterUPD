@@ -10,6 +10,8 @@ export type Severity = 'critical' | 'warning' | 'niceToHave';
 export interface AnalysisQuestion {
     experienceIndex: number;
     bulletIndex: number;
+    experienceId?: string;  // Stable ID for lookup after reordering
+    originalBullet?: string;  // Original text to match against
     question: string;
     issue?: string;
     severity?: Severity;
@@ -19,6 +21,7 @@ export interface Suggestion {
     type: "suggestion";
     experienceIndex?: number;
     bulletIndex?: number;
+    experienceId?: string;  // Stable ID for lookup after reordering
     original: string;
     suggested: string;
     reasoning: string;
@@ -32,6 +35,7 @@ interface QuestionCardProps {
     pendingSuggestion?: Suggestion | null;
     onApplySuggestion?: () => void;
     onDismissSuggestion?: () => void;
+    contextLabel?: string;
 }
 
 const severityConfig = {
@@ -68,7 +72,8 @@ export function QuestionCard({
     isAnswered,
     pendingSuggestion,
     onApplySuggestion,
-    onDismissSuggestion
+    onDismissSuggestion,
+    contextLabel
 }: QuestionCardProps) {
     const [answer, setAnswer] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -190,7 +195,7 @@ export function QuestionCard({
                             {config.label}
                         </span>
                         <span className="text-xs text-zinc-400">
-                            Job #{question.experienceIndex + 1}, Bullet #{question.bulletIndex + 1}
+                            {contextLabel || `Job #${question.experienceIndex + 1}, Bullet #${question.bulletIndex + 1}`}
                         </span>
                     </div>
                     <p className="text-sm text-zinc-800">

@@ -7,23 +7,24 @@ from dotenv import load_dotenv
 
 # Load environment variables
 script_dir = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.join(script_dir, "web", ".env")
-load_dotenv(dotenv_path=env_path)
+web_env_path = os.path.join(script_dir, "web", ".env")
+root_env_path = os.path.join(script_dir, ".env")
+
+load_dotenv(dotenv_path=root_env_path)  # Load root first (has the fresh key)
+load_dotenv(dotenv_path=web_env_path)
 
 def rewrite_resume(json_str):
     try:
         # Validate input
         if not json_str:
-             print(json.dumps({"error": "No JSON provided"}))
-             return
+             return {"error": "No JSON provided"}
 
         resume_data = json.loads(json_str)
 
-        # 2. Call Groq
+        # Use Groq
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
-             print(json.dumps({"error": "GROQ_API_KEY missing"}))
-             return
+             return {"error": "GROQ_API_KEY missing"}
 
         client = Groq(api_key=api_key)
         
@@ -42,12 +43,16 @@ def rewrite_resume(json_str):
         2. **KEEP STRUCTURE**: Return the EXACT same JSON structure. Do not add or remove top-level fields.
         3. **PROFESSIONAL TONE**: Use formal, punchy professional English.
         4. **SUMMARY**: Rewrite the "profile.summary" to be a compelling 2-sentence elevator pitch.
+        5. **DEDUPLICATION**: If the same role/organization appears in BOTH "experience" AND "responsibilities", REMOVE IT from one section:
+           - Keep PAID work, internships, and jobs in "experience" only.
+           - Keep UNPAID roles, volunteer positions, club activities, and student organizations in "responsibilities" only.
+           - Never output the same role twice.
         
         INPUT DATA:
         The user's current resume JSON.
 
         OUTPUT:
-        Strict valid JSON only.
+        Strict valid JSON only. No markdown, no backticks.
         """
 
         completion = client.chat.completions.create(
@@ -56,30 +61,75 @@ def rewrite_resume(json_str):
                 { "role": "user", "content": f"Resume JSON:\n{json.dumps(resume_data)}" }
             ],
             model="llama-3.3-70b-versatile",
-            temperature=0.2, # Low temp for consistency but slight creativity in phrasing
+            temperature=0.2,
             stream=False,
         )
 
         result = completion.choices[0].message.content
         
-        # Clean result
+        # Clean result - remove markdown code blocks
         result = result.replace("```json", "").replace("```", "").strip()
         
-        # Validate JSON
-        parsed_json = json.loads(result)
+        # Extract JSON object using brace counting (handles extra text after JSON)
+        start_idx = result.find('{')
+        if start_idx == -1:
+            return {"error": "No JSON object found in response"}
         
-        # Output to stdout
-        print(json.dumps(parsed_json))
+        brace_count = 0
+        end_idx = start_idx
+        for i, char in enumerate(result[start_idx:], start=start_idx):
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    end_idx = i + 1
+                    break
+        
+        json_str = result[start_idx:end_idx]
+        
+        # Validate JSON
+        parsed_json = json.loads(json_str)
+        
+        return parsed_json
 
     except Exception as e:
-        error_info = {
+        return {
             "error": str(e),
             "trace": traceback.format_exc()
         }
-        print(json.dumps(error_info))
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No JSON argument provided"}))
-    else:
-        rewrite_resume(sys.argv[1])
+    # Redirect stdout to stderr to prevent libraries from polluting the output
+    original_stdout = sys.stdout
+    sys.stdout = sys.stderr
+
+    try:
+        # Check if output file path is provided as argument
+        output_path = sys.argv[1] if len(sys.argv) > 1 else None
+        
+        # Read JSON from stdin
+        json_input = sys.stdin.read()
+        
+        if not json_input.strip():
+            result = {"error": "No JSON input provided via stdin"}
+        else:
+            result = rewrite_resume(json_input)
+        
+        if output_path:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2)
+        else:
+            sys.stdout = original_stdout
+            print(json.dumps(result))
+            
+    except Exception as e:
+        error_res = {"error": str(e)}
+        if len(sys.argv) > 1:
+            with open(sys.argv[1], 'w', encoding='utf-8') as f:
+                json.dump(error_res, f)
+        else:
+            sys.stdout = original_stdout
+            print(json.dumps(error_res))
+    finally:
+        sys.stdout = original_stdout

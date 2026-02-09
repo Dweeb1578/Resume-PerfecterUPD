@@ -1,0 +1,23 @@
+{
+    "personalInfo": {
+        "name": "Test User",
+        "email": "test@example.com"
+    },
+    "experience": [
+        {
+            "company": "Test Corp",
+            "role": "Software Engineer",
+            "location": "Remote",
+            "date": "2023 - Present",
+            "bullets": [
+                "Wrote code for the platform.",
+                "Fixed bugs in the system."
+            ]
+        }
+    ],
+    "projects": [],
+    "skills": {
+        "languages": [],
+        "technologies": []
+    }
+}

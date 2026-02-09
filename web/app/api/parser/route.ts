@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, unlink } from "fs/promises";
+import { writeFile, unlink, readFile } from "fs/promises";
 import { join } from "path";
 import { spawn } from "child_process";
 
@@ -39,36 +39,43 @@ export async function POST(req: NextRequest) {
         const scriptPath = join(process.cwd(), "..", "parser.py");
         console.log("Calling script at:", scriptPath);
 
+        // Create a temp output path
+        const tempOutputPath = join(process.cwd(), `temp_out_${Date.now()}.json`);
+
         return new Promise((resolve) => {
-            const pythonProcess = spawn("python", [scriptPath, tempFilePath]);
+            // Pass tempOutputPath as 2nd argument
+            const pythonProcess = spawn("python", [scriptPath, tempFilePath, tempOutputPath]);
 
-            let outputData = "";
             let errorData = "";
-
-            pythonProcess.stdout.on("data", (data) => {
-                outputData += data.toString();
-            });
 
             pythonProcess.stderr.on("data", (data) => {
                 errorData += data.toString();
             });
 
             pythonProcess.on("close", async (code) => {
-                // Cleanup temp file
+                // Cleanup input temp file
                 try { await unlink(tempFilePath); } catch (e) { }
 
                 if (code !== 0) {
                     console.error("Python Script Error:", errorData);
+                    // Try to unlink output file just in case
+                    try { await unlink(tempOutputPath); } catch (e) { }
                     resolve(NextResponse.json({ error: "Parser script failed", details: errorData }, { status: 500 }));
                     return;
                 }
 
                 try {
+                    // Read output from file
+                    const outputData = await readFile(tempOutputPath, 'utf-8');
+                    // Cleanup output file
+                    await unlink(tempOutputPath);
+
                     console.log("Python Output Length:", outputData.length);
                     const json = JSON.parse(outputData);
 
                     if (json.error) {
-                        throw new Error(json.error);
+                        resolve(NextResponse.json({ error: json.error }, { status: 400 }));
+                        return;
                     }
 
                     // Post-process IDs
@@ -80,8 +87,10 @@ export async function POST(req: NextRequest) {
                     resolve(NextResponse.json(json));
 
                 } catch (e: any) {
-                    console.error("JSON Parse Error:", e);
-                    console.log("Raw Output:", outputData);
+                    console.error("JSON Parse/Read Error:", e);
+                    // Try cleanup if read failed
+                    try { await unlink(tempOutputPath); } catch (err) { }
+
                     resolve(NextResponse.json({ error: "Invalid response from parser", details: e.message }, { status: 500 }));
                 }
             });

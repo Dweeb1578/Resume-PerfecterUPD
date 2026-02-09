@@ -1,6 +1,6 @@
 "use client";
 
-import { ResumeData, ResumeExperience } from "@/types/resume";
+import { ResumeData, ResumeExperience, SectionType } from "@/types/resume";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Trash2, Minus, Plus, RotateCcw } from "lucide-react";
 
@@ -19,6 +19,14 @@ interface BulletToRemove {
     bulletIndex: number;
     text: string;
     reason: string;
+}
+
+interface ExperienceToRemove {
+    experienceIndex: number;
+    role: string;
+    company: string;
+    reason: string;
+    score: number;
 }
 
 // Utility to highlight metrics and skill keywords in bullet text
@@ -163,17 +171,98 @@ function findBulletsToRemove(data: ResumeData, targetReduction: number): BulletT
     return candidates.slice(0, Math.min(bulletsNeeded, candidates.length));
 }
 
+// Rank entire experiences by "removability" - weak experiences (no metrics, short tenure, vague descriptions) first
+function findWeakExperiences(data: ResumeData): ExperienceToRemove[] {
+    const candidates: ExperienceToRemove[] = [];
+
+    // Strong action verbs that indicate valuable content
+    const strongVerbs = /^(Led|Built|Designed|Increased|Reduced|Launched|Managed|Created|Developed|Implemented|Achieved|Grew|Generated|Drove|Spearheaded|Optimized|Secured|Negotiated)/i;
+
+    // Metrics patterns indicate strong bullets
+    const hasMetrics = /\d+%|\d+x|\$[\d,]+|\d+\s*(users|customers|hours|days|weeks|months|people|teams|projects|clients|members|employees)/i;
+
+    data.experience?.forEach((exp, expIdx) => {
+        let score = 0;
+        let reason = '';
+
+        const bullets = exp.bullets || [];
+
+        // 1. Number of bullets - fewer bullets = less demonstrated impact
+        if (bullets.length <= 1) {
+            score -= 20;
+            reason = 'Only 1 bullet point - limited demonstrated impact';
+        } else if (bullets.length === 2) {
+            score -= 10;
+            reason = 'Only 2 bullet points - consider adding more details or removing';
+        } else {
+            score += bullets.length * 5; // More bullets = more content = keep
+        }
+
+        // 2. Check if any bullet has metrics
+        const hasAnyMetrics = bullets.some(b => hasMetrics.test(b));
+        if (hasAnyMetrics) {
+            score += 30; // Strong - has quantifiable results
+        } else {
+            score -= 15;
+            reason = reason || 'No quantifiable metrics or results';
+        }
+
+        // 3. Check for strong action verbs
+        const hasStrongVerbs = bullets.some(b => strongVerbs.test(b));
+        if (hasStrongVerbs) {
+            score += 20;
+        } else {
+            score -= 10;
+            reason = reason || 'Missing strong action verbs';
+        }
+
+        // 4. Older experiences are more removable (later in the array = older)
+        score -= expIdx * 8;
+
+        // 5. Big company names are valuable (keep them)
+        const bigCompanies = /google|amazon|microsoft|meta|facebook|apple|netflix|tesla|nvidia|adobe|salesforce|oracle|ibm|intel/i;
+        if (bigCompanies.test(exp.company)) {
+            score += 50; // Definitely keep big company experience
+        }
+
+        // 6. Internships at the end of the list are more removable
+        if (/intern/i.test(exp.role) && expIdx > 1) {
+            score -= 15;
+            reason = reason || 'Older internship - consider removing if space is needed';
+        }
+
+        // Only suggest removal if score is negative or low
+        if (score < 20) {
+            candidates.push({
+                experienceIndex: expIdx,
+                role: exp.role,
+                company: exp.company,
+                reason: reason || 'Weaker than other experiences',
+                score
+            });
+        }
+    });
+
+    // Sort by score ASCENDING - lowest score (weakest) first
+    candidates.sort((a, b) => a.score - b.score);
+
+    return candidates;
+}
+
 export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
     const contentRef = useRef<HTMLDivElement>(null);
     const [isOverflowing, setIsOverflowing] = useState(false);
     const [contentHeight, setContentHeight] = useState(0);
     const [bulletsToRemove, setBulletsToRemove] = useState<BulletToRemove[]>([]);
-    const [fontScale, setFontScale] = useState(0.9); // 0.9 = default (slightly smaller), 1 = 100%
+    const [experiencesToRemove, setExperiencesToRemove] = useState<ExperienceToRemove[]>([]);
+    const [fontScale, setFontScale] = useState(1); // 1 = 100% default
+    const [titleScale, setTitleScale] = useState(1); // 1 = 100% default for titles
     const [previousData, setPreviousData] = useState<ResumeData | null>(null);
     const [previousFontScale, setPreviousFontScale] = useState<number | null>(null);
 
     const baseFontSize = 13.5; // pt
     const currentFontSize = baseFontSize * fontScale;
+    const titleFontSize = baseFontSize * fontScale * titleScale;
 
     // Check if content exceeds one page
     useEffect(() => {
@@ -191,8 +280,11 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
             } else {
                 setBulletsToRemove([]);
             }
+
+            // Always calculate weak experiences for the removal panel
+            setExperiencesToRemove(findWeakExperiences(data));
         }
-    }, [data, fontScale]);
+    }, [data, fontScale, titleScale]);
 
     const handleRemoveBullet = (expIdx: number, bulletIdx: number) => {
         if (!onResumeUpdate) return;
@@ -226,6 +318,18 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
         });
 
         onResumeUpdate(updatedData);
+    };
+
+    const handleRemoveExperience = (expIdx: number) => {
+        if (!onResumeUpdate) return;
+        setPreviousData(JSON.parse(JSON.stringify(data)));
+        setPreviousFontScale(fontScale);
+
+        const updatedData = JSON.parse(JSON.stringify(data)) as ResumeData;
+        if (updatedData.experience && updatedData.experience.length > expIdx) {
+            updatedData.experience.splice(expIdx, 1);
+            onResumeUpdate(updatedData);
+        }
     };
 
     const handleShrinkFont = () => {
@@ -262,6 +366,7 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                 <div className="mx-auto max-w-[210mm] mb-4 flex justify-between items-center">
                     {/* Font Controls */}
                     <div className="flex items-center gap-2 bg-white rounded-md p-1 shadow-sm border">
+                        <span className="text-[10px] text-zinc-500 px-1">Text</span>
                         <Button
                             variant="ghost"
                             size="sm"
@@ -272,7 +377,7 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                         >
                             <Minus className="h-4 w-4" />
                         </Button>
-                        <span className="text-xs font-medium w-12 text-center text-zinc-600">
+                        <span className="text-xs font-medium w-10 text-center text-zinc-600">
                             {Math.round(fontScale * 100)}%
                         </span>
                         <Button
@@ -285,13 +390,41 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                         >
                             <Plus className="h-4 w-4" />
                         </Button>
-                        {(fontScale !== 1 || previousFontScale !== null) && (
+                    </div>
+
+                    {/* Title Scale Controls */}
+                    <div className="flex items-center gap-2 bg-white rounded-md p-1 shadow-sm border">
+                        <span className="text-[10px] text-zinc-500 px-1">Titles</span>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setTitleScale(prev => Math.max(0.8, prev - 0.05))}
+                            disabled={titleScale <= 0.8}
+                            title="Shrink Titles"
+                        >
+                            <Minus className="h-4 w-4" />
+                        </Button>
+                        <span className="text-xs font-medium w-10 text-center text-zinc-600">
+                            {Math.round(titleScale * 100)}%
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setTitleScale(prev => Math.min(1.3, prev + 0.05))}
+                            disabled={titleScale >= 1.3}
+                            title="Enlarge Titles"
+                        >
+                            <Plus className="h-4 w-4" />
+                        </Button>
+                        {titleScale !== 1 && (
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0 text-zinc-400 hover:text-zinc-600"
-                                onClick={handleReset}
-                                title="Reset Size"
+                                onClick={() => setTitleScale(1)}
+                                title="Reset Titles"
                             >
                                 <RotateCcw className="h-3 w-3" />
                             </Button>
@@ -403,6 +536,36 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                 })}
                             </div>
                         )}
+
+                        {/* Weak experiences section */}
+                        {experiencesToRemove.length > 0 && (
+                            <div className="space-y-2 border-t border-orange-200 pt-3 mt-3">
+                                <p className="text-xs text-orange-600 font-medium">Or remove entire experiences:</p>
+                                {experiencesToRemove.map((exp, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 bg-orange-50 rounded p-2 border border-orange-200">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-0.5">
+                                                <span className="text-xs font-semibold text-zinc-800">
+                                                    {exp.role}
+                                                </span>
+                                                <span className="text-[10px] text-zinc-500">@</span>
+                                                <span className="text-xs text-zinc-600">{exp.company}</span>
+                                            </div>
+                                            <p className="text-[10px] text-orange-600">{exp.reason}</p>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 px-2 text-orange-600 hover:bg-orange-100 shrink-0"
+                                            onClick={() => handleRemoveExperience(exp.experienceIndex)}
+                                        >
+                                            <Trash2 className="h-3 w-3 mr-1" />
+                                            Remove
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -455,146 +618,146 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                             </div>
                         </div>
 
-                        {/* Education */}
-                        {data.education?.length > 0 && (
-                            <div className="mb-4">
-                                <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
-                                    Education
-                                </h2>
-                                {data.education.map((edu) => (
-                                    <div key={edu.id} className="mb-1">
-                                        <div className="flex justify-between">
-                                            <span className="font-bold">{edu.school}</span>
-                                            <span className="text-[0.85em]">{edu.startDate} – {edu.endDate}</span>
-                                        </div>
-                                        <div className="text-[0.85em] italic text-zinc-600">
-                                            {edu.degree} in {edu.field}
-                                            {edu.grade && <span className="ml-2">(GPA: {edu.grade})</span>}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        {/* Dynamic Sections based on sectionOrder */}
+                        {(() => {
+                            const DEFAULT_SECTION_ORDER: SectionType[] = ['education', 'experience', 'responsibilities', 'projects', 'achievements', 'skills'];
+                            const sectionOrder = data.sectionOrder || DEFAULT_SECTION_ORDER;
 
-                        {/* Professional Experience */}
-                        {data.experience?.length > 0 && (
-                            <div className="mb-4">
-                                <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
-                                    Professional Experience
-                                </h2>
-                                {data.experience.map((exp) => (
-                                    <div key={exp.id} className="mb-2">
-                                        <div className="flex justify-between items-baseline">
-                                            <span className="font-bold">{exp.role}</span>
-                                            <span className="text-[0.85em]">{exp.startDate} – {exp.endDate}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[0.85em]">
-                                            <span className="italic text-zinc-600">{exp.company}</span>
-                                            <span className="text-zinc-500">{exp.location}</span>
-                                        </div>
-                                        <ul className="mt-0.5 ml-4 space-y-0">
-                                            {exp.bullets?.map((bullet, idx) => (
+                            const sectionRenderers: Record<SectionType, () => React.ReactNode> = {
+                                education: () => data.education?.length > 0 && (
+                                    <div key="education" className="mb-1.5">
+                                        <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
+                                            Education
+                                        </h2>
+                                        {data.education.filter(edu => !edu.hidden).map((edu) => (
+                                            <div key={edu.id} className="mb-1">
+                                                <div className="flex justify-between">
+                                                    <span className="font-bold">{edu.school}</span>
+                                                    <span className="text-[0.85em]">{edu.startDate || edu.endDate ? `${edu.startDate || ''} – ${edu.endDate || ''}` : ''}</span>
+                                                </div>
+                                                <div className="text-[0.85em] italic text-zinc-600">
+                                                    {edu.degree} in {edu.field}
+                                                    {edu.grade && <span className="ml-2">(GPA: {edu.grade})</span>}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ),
+                                experience: () => data.experience?.length > 0 && (
+                                    <div key="experience" className="mb-1.5">
+                                        <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
+                                            Professional Experience
+                                        </h2>
+                                        {data.experience.filter(exp => !exp.hidden).map((exp) => (
+                                            <div key={exp.id} className="mb-0.5">
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="font-bold" style={{ fontSize: `${titleScale}em` }}>{exp.role}</span>
+                                                    <span className="text-[0.85em]">{exp.startDate || exp.endDate ? `${exp.startDate || ''} – ${exp.endDate || ''}` : ''}</span>
+                                                </div>
+                                                <div className="flex justify-between text-[0.85em]">
+                                                    <span className="font-semibold italic text-zinc-600">{exp.company}</span>
+                                                    <span className="text-zinc-500">{exp.location}</span>
+                                                </div>
+                                                <ul className="mt-0.5 ml-4 space-y-0">
+                                                    {exp.bullets?.map((bullet, idx) => (
+                                                        <li key={idx} className="text-[0.85em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
+                                                            {highlightMetrics(bullet, data.skills || [])}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ),
+                                responsibilities: () => data.responsibilities?.length > 0 && (
+                                    <div key="responsibilities" className="mb-1.5">
+                                        <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
+                                            Positions of Responsibility
+                                        </h2>
+                                        {data.responsibilities.filter(resp => !resp.hidden).map((resp) => (
+                                            <div key={resp.id} className="mb-1">
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="font-bold" style={{ fontSize: `${titleScale}em` }}>{resp.title}</span>
+                                                    <span className="text-[0.85em]">{resp.startDate || resp.endDate ? `${resp.startDate || ''} – ${resp.endDate || ''}` : ''}</span>
+                                                </div>
+                                                <div className="flex justify-between text-[0.85em]">
+                                                    <span className="italic text-zinc-600">{resp.organization}</span>
+                                                    <span className="text-zinc-500">{resp.location}</span>
+                                                </div>
+                                                <ul className="mt-0.5 ml-4">
+                                                    <li className="text-[0.85em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
+                                                        {highlightMetrics(resp.description, data.skills || [])}
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ),
+                                projects: () => data.projects?.length > 0 && (
+                                    <div key="projects" className="mb-1.5">
+                                        <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
+                                            Projects
+                                        </h2>
+                                        {data.projects.filter(project => !project.hidden).map((project) => (
+                                            <div key={project.id} className="mb-1">
+                                                <div className="flex justify-between items-baseline">
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="font-bold" style={{ fontSize: `${titleScale}em` }}>{project.name}</span>
+                                                        {project.link && (
+                                                            <a href={project.link} className="text-blue-700 text-[0.85em] hover:underline">[Link]</a>
+                                                        )}
+                                                    </div>
+                                                    {(project.startDate || project.endDate) && (
+                                                        <span className="text-[0.85em]">{project.startDate || project.endDate ? `${project.startDate || ''} – ${project.endDate || ''}` : ''}</span>
+                                                    )}
+                                                </div>
+                                                {project.technologies?.length > 0 && (
+                                                    <p className="text-[0.85em] text-zinc-600">{project.technologies.join(", ")}</p>
+                                                )}
+                                                <ul className="mt-0.5 ml-4">
+                                                    {project.bullets?.map((bullet, idx) => (
+                                                        <li key={idx} className="text-[0.85em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
+                                                            {highlightMetrics(bullet, data.skills || [])}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ),
+                                achievements: () => (data.achievements?.length ?? 0) > 0 && (
+                                    <div key="achievements" className="mb-1.5">
+                                        <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
+                                            Achievements & Certifications
+                                        </h2>
+                                        <ul className="ml-4 space-y-0.5">
+                                            {data.achievements?.map((achievement: string, idx: number) => (
                                                 <li key={idx} className="text-[0.85em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
-                                                    {highlightMetrics(bullet, data.skills || [])}
+                                                    {highlightMetrics(achievement, data.skills || [])}
                                                 </li>
                                             ))}
                                         </ul>
                                     </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Positions of Responsibility */}
-                        {data.responsibilities?.length > 0 && (
-                            <div className="mb-4">
-                                <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
-                                    Positions of Responsibility
-                                </h2>
-                                {data.responsibilities.map((resp) => (
-                                    <div key={resp.id} className="mb-2">
-                                        <div className="flex justify-between items-baseline">
-                                            <span className="font-bold">{resp.title}</span>
-                                            <span className="text-[0.85em]">{resp.startDate} – {resp.endDate}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[0.85em]">
-                                            <span className="italic text-zinc-600">{resp.organization}</span>
-                                            <span className="text-zinc-500">{resp.location}</span>
-                                        </div>
-                                        <ul className="mt-1 ml-4">
-                                            <li className="text-[0.85em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
-                                                {highlightMetrics(resp.description, data.skills || [])}
-                                            </li>
-                                        </ul>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Projects */}
-                        {data.projects?.length > 0 && (
-                            <div className="mb-4">
-                                <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
-                                    Projects
-                                </h2>
-                                {data.projects.map((project) => (
-                                    <div key={project.id} className="mb-2">
-                                        <div className="flex justify-between items-baseline">
-                                            <span className="font-bold">{project.name}</span>
-                                            {project.link && (
-                                                <a href={project.link} className="text-blue-700 text-[0.85em] hover:underline">Link</a>
-                                            )}
-                                        </div>
-                                        {project.technologies?.length > 0 && (
-                                            <p className="text-[0.85em] text-zinc-600">{project.technologies.join(", ")}</p>
+                                ),
+                                skills: () => data.skills?.length > 0 && (
+                                    <div key="skills" className="mb-1.5">
+                                        <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
+                                            Skills
+                                        </h2>
+                                        <p className="text-[0.85em]">
+                                            <span className="font-semibold">Technical:</span> {data.skills.join(", ")}
+                                        </p>
+                                        {(data.softSkills?.length ?? 0) > 0 && (
+                                            <p className="text-[0.85em] mt-1">
+                                                <span className="font-semibold">Soft Skills:</span> {data.softSkills?.join(", ")}
+                                            </p>
                                         )}
-                                        <ul className="mt-1 ml-4">
-                                            {project.bullets?.map((bullet, idx) => (
-                                                <li key={idx} className="text-[0.85em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
-                                                    {highlightMetrics(bullet, data.skills || [])}
-                                                </li>
-                                            ))}
-                                        </ul>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                ),
+                            };
 
-                        {/* Achievements */}
-                        {(data.achievements?.length ?? 0) > 0 && (
-                            <div className="mb-4">
-                                <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
-                                    Achievements & Certifications
-                                </h2>
-                                <ul className="ml-4 space-y-0.5">
-                                    {data.achievements?.map((achievement: string, idx: number) => (
-                                        <li key={idx} className="text-[0.85em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
-                                            {highlightMetrics(achievement, data.skills || [])}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-
-                        {/* Skills */}
-                        {data.skills?.length > 0 && (
-                            <div className="mb-4">
-                                <h2 className="text-[0.95em] font-bold text-blue-800 border-b border-zinc-300 pb-0.5 mb-1 uppercase tracking-wider">
-                                    Skills
-                                </h2>
-
-                                {/* Technical Skills */}
-                                <p className="text-[0.85em]">
-                                    <span className="font-semibold">Technical:</span> {data.skills.join(", ")}
-                                </p>
-
-                                {/* Soft Skills */}
-                                {(data.softSkills?.length ?? 0) > 0 && (
-                                    <p className="text-[0.85em] mt-1">
-                                        <span className="font-semibold">Soft Skills:</span> {data.softSkills?.join(", ")}
-                                    </p>
-                                )}
-                            </div>
-                        )}
+                            return sectionOrder.map(section => sectionRenderers[section]());
+                        })()}
                     </div>
 
                     {/* Page break indicator */}

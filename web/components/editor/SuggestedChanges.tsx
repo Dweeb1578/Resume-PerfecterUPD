@@ -7,6 +7,7 @@ export interface Suggestion {
     type: "suggestion";
     experienceIndex?: number;
     bulletIndex?: number;
+    experienceId?: string;  // Stable ID for lookup after reordering
     section?: string;
     original: string;
     suggested: string;

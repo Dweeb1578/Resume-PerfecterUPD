@@ -8,8 +8,11 @@ from dotenv import load_dotenv
 
 # Load environment variables
 script_dir = os.path.dirname(os.path.abspath(__file__))
-env_path = os.path.join(script_dir, "web", ".env")
-load_dotenv(dotenv_path=env_path)
+web_env_path = os.path.join(script_dir, "web", ".env")
+root_env_path = os.path.join(script_dir, ".env")
+
+load_dotenv(dotenv_path=web_env_path)
+load_dotenv(dotenv_path=root_env_path)
 
 def parse_resume(file_path):
     try:
@@ -20,14 +23,12 @@ def parse_resume(file_path):
             text += page.extract_text() + "\n"
         
         if not text.strip():
-            print(json.dumps({"error": "No text extracted from PDF"}))
-            return
+            return {"error": "No text extracted from PDF"}
 
         # 2. Call Groq
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
-             print(json.dumps({"error": "GROQ_API_KEY missing"}))
-             return
+             return {"error": "GROQ_API_KEY missing"}
 
         client = Groq(api_key=api_key)
         
@@ -110,6 +111,8 @@ def parse_resume(file_path):
                     "description": "Brief description", 
                     "technologies": ["React", "Python"], 
                     "link": "github/demo link", 
+                    "startDate": "MM/YYYY or YYYY",
+                    "endDate": "MM/YYYY, YYYY or Present",
                     "bullets": ["Key contribution 1", "Key contribution 2"] 
                 } 
             ],
@@ -149,7 +152,10 @@ def parse_resume(file_path):
            - 'role' is the Job Title (e.g., "Software Engineer", "Product Manager").
            - 'company' is the Organization/Employer (e.g., "Google", "Startup Inc").
            - Do not swap these.
-        3. **DATES**: Keep original format. If "Present" or "Current" is used, keep it as "Present".
+        3. **DATES**: 
+           - Keep original format. If "Present" or "Current" is used, keep it as "Present".
+           - If dates are missing or just show "–" with no actual dates, use empty strings "" for startDate and endDate.
+           - Do NOT put "–" as a date value.
         4. **SKILLS vs SOFT SKILLS**: 
            - **skills**: Technical hard skills ONLY (e.g. Python, SQL, Photoshop, AWS, Spanish).
            - **softSkills**: Interpersonal or abstract skills (e.g. Leadership, Teamwork, Communication, Adaptability).
@@ -157,11 +163,29 @@ def parse_resume(file_path):
            - Split long paragraphs into individual executable bullet points.
            - If a section has no bullets but has a paragraph, split the paragraph into logical sentences/bullets.
         
+        6. **EXPERIENCE vs RESPONSIBILITIES - VERY IMPORTANT**:
+           - **experience**: ONLY for paid work, internships, or professional employment at companies/organizations.
+             Examples: "Software Engineer at Google", "Marketing Intern at Startup", "KPMG", "SARC"
+           - **responsibilities**: For unpaid leadership roles, club positions, student organizations, volunteer work.
+             Examples: "Event Management Head at Verba Maximus", "Actor at Dramatics Club", "Member of Astronomy Club"
+           - If a section is titled "Professional Experience" but contains club/volunteer roles, put them in **responsibilities** NOT experience.
+           - If the organization is a college club, fest, society, or student body → it goes in **responsibilities**.
+        
+        7. **DEDUPLICATION**:
+           - If the same role+organization appears in multiple sections of the resume, extract it ONCE only.
+           - Prefer the version with more details (bullets, dates) if duplicates exist.
+           - Do NOT create duplicate entries in the output JSON.
+        
+        8. **ORGANIZATION EXTRACTION**:
+           - For club roles, the format is often "Role Title – Organization Name" (separated by dash).
+           - Extract "Event Management Head" as title, "Verba Maximus" as organization.
+           - Do not leave organization empty if it appears after the dash.
+        
         SECTION MAPPING GUIDE:
-        - "Work Experience", "Professional Experience", "History", "Employment" -> **experience**
+        - "Work Experience", "Professional Experience", "History", "Employment" -> **experience** (but filter for actual jobs only)
         - "Projects", "Technical Projects", "Side Projects" -> **projects**
         - "Education", "Academic Background", "Scholastic Achievements" -> **education**
-        - "Leadership", "Positions of Responsibility", "Volunteering" -> **responsibilities**
+        - "Leadership", "Positions of Responsibility", "Volunteering", "Extracurriculars" -> **responsibilities**
         - "Skills", "Technical Skills", "Stack" -> **skills**
         - "Achievements", "Awards", "Certifications", "Honors" -> **achievements**
 
@@ -198,17 +222,45 @@ def parse_resume(file_path):
         parsed_json = json.loads(result)
         
         # Output to stdout
-        print(json.dumps(parsed_json))
+        return parsed_json
 
     except Exception as e:
         error_info = {
             "error": str(e),
             "trace": traceback.format_exc()
         }
-        print(json.dumps(error_info))
+        return error_info
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No file path provided"}))
-    else:
-        parse_resume(sys.argv[1])
+    # Redirect stdout to stderr to prevent libraries from polluting the output
+    # expecting clean JSON on the real stdout
+    original_stdout = sys.stdout
+    sys.stdout = sys.stderr
+
+    try:
+        if len(sys.argv) < 2:
+            sys.stdout = original_stdout
+            print(json.dumps({"error": "No file path provided"}))
+        else:
+            input_path = sys.argv[1]
+            output_path = sys.argv[2] if len(sys.argv) > 2 else None
+            
+            result = parse_resume(input_path)
+            
+            if output_path:
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    json.dump(result, f, indent=2)
+            else:
+                sys.stdout = original_stdout
+                print(json.dumps(result))
+                
+    except Exception as e:
+        error_res = {"error": str(e)}
+        if len(sys.argv) > 2:
+            with open(sys.argv[2], 'w', encoding='utf-8') as f:
+                json.dump(error_res, f)
+        else:
+            sys.stdout = original_stdout
+            print(json.dumps(error_res))
+    finally:
+        sys.stdout = original_stdout
