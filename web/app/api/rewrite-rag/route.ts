@@ -46,7 +46,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                     } else {
                         resolve(NextResponse.json(result, { status: 200 }));
                     }
-                } catch (e) {
+                } catch {
                     console.error('Failed to parse Python output:', dataString);
                     resolve(NextResponse.json(
                         { error: 'Invalid response from rewriter', raw: dataString },

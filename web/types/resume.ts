@@ -65,6 +65,7 @@ export interface ResumeData {
     softSkills?: string[];
     achievements?: string[];
     sectionOrder?: SectionType[];
+    sectionTitles?: Partial<Record<SectionType, string>>;
 }
 
 export const initialResumeState: ResumeData = {

@@ -1,0 +1,63 @@
+
+> web@0.1.0 lint
+> eslint
+
+
+D:\Projects\Resume-PerfecterUPD\web\app\api\analyze\route.ts
+  15:52  warning  'reject' is defined but never used  @typescript-eslint/no-unused-vars
+  46:26  warning  'e' is defined but never used       @typescript-eslint/no-unused-vars
+
+D:\Projects\Resume-PerfecterUPD\web\app\api\chat\route.ts
+  88:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Projects\Resume-PerfecterUPD\web\app\api\parser\route.ts
+   29:15  warning  'tmpDir' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   57:60  warning  'e' is defined but never used                @typescript-eslint/no-unused-vars
+   62:66  warning  'e' is defined but never used                @typescript-eslint/no-unused-vars
+   82:42  error    Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+   89:29  error    Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+   92:66  warning  'err' is defined but never used              @typescript-eslint/no-unused-vars
+   99:21  error    Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  102:56  warning  'e' is defined but never used                @typescript-eslint/no-unused-vars
+
+D:\Projects\Resume-PerfecterUPD\web\app\api\rewrite-rag\route.ts
+  49:26  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Resume-PerfecterUPD\web\app\api\rewrite\route.ts
+   4:10  warning  'writeFile' is defined but never used     @typescript-eslint/no-unused-vars
+  40:66  warning  'e' is defined but never used             @typescript-eslint/no-unused-vars
+  79:29  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  82:66  warning  'err' is defined but never used           @typescript-eslint/no-unused-vars
+
+D:\Projects\Resume-PerfecterUPD\web\components\editor\ChatInterface.tsx
+    5:36  warning  'AlertTriangle' is defined but never used  @typescript-eslint/no-unused-vars
+   23:46  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  184:23  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  216:27  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  268:53  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  269:58  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  632:39  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+
+D:\Projects\Resume-PerfecterUPD\web\components\editor\ResumePreview.tsx
+    3:22  warning  'ResumeExperience' is defined but never used        @typescript-eslint/no-unused-vars
+  265:11  warning  'titleFontSize' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+D:\Projects\Resume-PerfecterUPD\web\components\editor\SectionManager.tsx
+  3:22  warning  'ResumeExperience' is defined but never used      @typescript-eslint/no-unused-vars
+  3:40  warning  'ResumeProject' is defined but never used         @typescript-eslint/no-unused-vars
+  3:55  warning  'ResumeResponsibility' is defined but never used  @typescript-eslint/no-unused-vars
+  3:77  warning  'ResumeEducation' is defined but never used       @typescript-eslint/no-unused-vars
+  7:10  warning  'Button' is defined but never used                @typescript-eslint/no-unused-vars
+
+D:\Projects\Resume-PerfecterUPD\web\test_gemini.js
+  1:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  3:1   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\Projects\Resume-PerfecterUPD\web\test_pdf.js
+  1:7   warning  'fs' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  1:12  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  2:13  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+Γ£û 36 problems (16 errors, 20 warnings)
+

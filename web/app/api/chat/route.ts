@@ -85,13 +85,14 @@ After the JSON, just say: "Here's your improved bullet!" - DO NOT ask follow-up 
             }
         });
 
-    } catch (e: any) {
-        console.error("API Route Error:", e);
-        console.error("Error message:", e?.message);
-        console.error("Error status:", e?.status);
-        console.error("Error body:", e?.error);
-        return new Response(JSON.stringify({ error: e?.message || "Internal Server Error" }), {
-            status: e?.status || 500,
+    } catch (e: unknown) {
+        const err = e as { message?: string; status?: number; error?: string };
+        console.error("API Route Error:", err);
+        console.error("Error message:", err?.message);
+        console.error("Error status:", err?.status);
+        console.error("Error body:", err?.error);
+        return new Response(JSON.stringify({ error: err?.message || "Internal Server Error" }), {
+            status: err?.status || 500,
             headers: { 'Content-Type': 'application/json' }
         });
     }

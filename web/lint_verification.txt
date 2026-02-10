@@ -1,0 +1,29 @@
+
+> web@0.1.0 lint
+> eslint
+
+
+D:\Projects\Resume-PerfecterUPD\web\app\api\parser\route.ts
+  108:32  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+D:\Projects\Resume-PerfecterUPD\web\components\editor\ChatInterface.tsx
+    5:36  warning  'AlertTriangle' is defined but never used  @typescript-eslint/no-unused-vars
+   23:46  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  184:23  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  216:27  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  268:53  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  269:58  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+  632:39  error    Unexpected any. Specify a different type   @typescript-eslint/no-explicit-any
+
+D:\Projects\Resume-PerfecterUPD\web\test_gemini.js
+  1:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  3:1   error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  7:12  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+D:\Projects\Resume-PerfecterUPD\web\test_pdf.js
+  1:7   warning  'fs' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  1:12  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  2:13  error    A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+Γ£û 14 problems (12 errors, 2 warnings)
+

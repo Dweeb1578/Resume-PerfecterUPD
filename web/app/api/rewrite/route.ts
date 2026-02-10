@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
-import { writeFile, readFile, unlink } from 'fs/promises';
+import { readFile, unlink } from 'fs/promises';
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 if (code !== 0) {
                     console.error('Rewriter script failed with code:', code);
                     console.error('Stderr:', errorString);
-                    try { await unlink(tempOutputPath); } catch (e) { }
+                    try { await unlink(tempOutputPath); } catch { }
                     resolve(NextResponse.json(
                         { error: 'Rewriting failed', details: errorString || `Exit code ${code}` },
                         { status: 500 }
@@ -76,12 +76,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                     } else {
                         resolve(NextResponse.json(result, { status: 200 }));
                     }
-                } catch (e: any) {
-                    console.error('Failed to parse Python output:', e.message);
+                } catch (e: unknown) {
+                    console.error('Failed to parse Python output:', (e as Error).message);
                     console.error('Stderr was:', errorString);
-                    try { await unlink(tempOutputPath); } catch (err) { }
+                    try { await unlink(tempOutputPath); } catch { }
                     resolve(NextResponse.json(
-                        { error: 'Invalid response from rewriter', details: e.message },
+                        { error: 'Invalid response from rewriter', details: (e as Error).message },
                         { status: 500 }
                     ));
                 }

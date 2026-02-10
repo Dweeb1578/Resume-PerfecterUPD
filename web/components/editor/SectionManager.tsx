@@ -1,10 +1,10 @@
 "use client";
 
-import { ResumeData, ResumeExperience, ResumeProject, ResumeResponsibility, ResumeEducation, SectionType } from "@/types/resume";
+import { ResumeData, SectionType } from "@/types/resume";
 import { Reorder, useDragControls } from "framer-motion";
 import { GripVertical, X, ChevronDown, ChevronRight, Briefcase, FolderKanban, Award, GraduationCap, Star, Wrench } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+
 
 interface SectionManagerProps {
     data: ResumeData;

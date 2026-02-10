@@ -12,7 +12,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         // serialize the full resume JSON to pass as arg
         const resumeJsonStr = JSON.stringify(body);
 
-        return new Promise<NextResponse>((resolve, reject) => {
+        return new Promise<NextResponse>((resolve) => {
             const pythonProcess = spawn('python', [scriptPath, resumeJsonStr]);
 
             let dataString = '';
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                     } else {
                         resolve(NextResponse.json(result, { status: 200 }));
                     }
-                } catch (e) {
+                } catch {
                     console.error('Failed to parse Python output:', dataString);
                     resolve(NextResponse.json(
                         { error: 'Invalid response from analyzer', raw: dataString },

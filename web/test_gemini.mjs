@@ -1,10 +1,10 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+/* eslint-disable */
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import 'dotenv/config';
+import fs from 'fs';
 
-require('dotenv').config();
 const apiKey = process.env.GEMINI_API_KEY;
 console.log("API Key present:", !!apiKey);
-
-const fs = require('fs');
 
 async function testConfig() {
     try {
