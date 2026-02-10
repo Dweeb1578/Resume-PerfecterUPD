@@ -8,10 +8,14 @@ import { useState } from "react";
 export type Severity = 'critical' | 'warning' | 'niceToHave';
 
 export interface AnalysisQuestion {
-    experienceIndex: number;
-    bulletIndex: number;
+    section?: 'experience' | 'project' | 'responsibility';
+    experienceIndex?: number;
+    projectIndex?: number;
+    responsibilityIndex?: number;
+    bulletIndex?: number;
     experienceId?: string;  // Stable ID for lookup after reordering
     originalBullet?: string;  // Original text to match against
+    quote?: string;
     question: string;
     issue?: string;
     severity?: Severity;
@@ -19,7 +23,10 @@ export interface AnalysisQuestion {
 
 export interface Suggestion {
     type: "suggestion";
+    section?: 'experience' | 'project' | 'responsibility';
     experienceIndex?: number;
+    projectIndex?: number;
+    responsibilityIndex?: number;
     bulletIndex?: number;
     experienceId?: string;  // Stable ID for lookup after reordering
     original: string;
@@ -195,7 +202,7 @@ export function QuestionCard({
                             {config.label}
                         </span>
                         <span className="text-xs text-zinc-400">
-                            {contextLabel || `Job #${question.experienceIndex + 1}, Bullet #${question.bulletIndex + 1}`}
+                            {contextLabel || `${question.section === 'project' ? 'Project' : question.section === 'responsibility' ? 'Role' : 'Job'} #${((question.projectIndex ?? question.responsibilityIndex ?? question.experienceIndex) ?? 0) + 1} • ${question.section !== 'responsibility' ? `Bullet #${(question.bulletIndex ?? 0) + 1}` : 'Description'}`}
                         </span>
                     </div>
                     <p className="text-sm text-zinc-800">
@@ -232,6 +239,6 @@ export function QuestionCard({
                     )}
                 </Button>
             </form>
-        </div>
+        </div >
     );
 }

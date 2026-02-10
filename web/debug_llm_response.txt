@@ -1,0 +1,154 @@
+```json
+{
+    "profile": {
+        "name": "Aarya Deshpande",
+        "email": "deshaaaru@gmail.com",
+        "phone": "+91-9881204474",
+        "linkedin": "",
+        "github": "",
+        "website": "",
+        "summary": ""
+    },
+    "experience": [
+        {
+            "id": "uuid1",
+            "company": "KPMG",
+            "role": "Market Strategy Project",
+            "startDate": "Jul ‘25",
+            "endDate": "Aug ‘25",
+            "location": "",
+            "bullets": [
+                "Identified new revenue streams from Global Capability Centres (GCCs) in India",
+                "Studied the setup, run, and sell life cycle of GCCs to identify strategic revenue levers"
+            ]
+        }
+    ],
+    "projects": [
+        {
+            "id": "uuid2",
+            "name": "Trendy Dice",
+            "description": "Corporate Strategy & Marketing Project",
+            "technologies": [],
+            "link": "",
+            "startDate": "Jun ‘25",
+            "endDate": "Aug ‘25",
+            "bullets": [
+                "Conducted industry, competitor, and customer research in the custom apparel market",
+                "Crafted a data-driven marketing strategy to improve brand positioning and sales conversion"
+            ]
+        },
+        {
+            "id": "uuid3",
+            "name": "Enuncify",
+            "description": "Pre-Launch GTM & Management Consulting Project",
+            "technologies": [],
+            "link": "",
+            "startDate": "Sep ‘25",
+            "endDate": "Nov ‘25",
+            "bullets": [
+                "Developed go-to-market (GTM) strategy, identifying target user segments and acquisition channels",
+                "Performed beta testing and pilot marketing, incorporating user feedback into product positioning"
+            ]
+        },
+        {
+            "id": "uuid4",
+            "name": "Alumni Engagement & Fundraising Strategy",
+            "description": "Project for SARC, BITS Hyderabad",
+            "technologies": [],
+            "link": "",
+            "startDate": "Aug ‘25",
+            "endDate": "Nov ‘25",
+            "bullets": [
+                "Designed strategic initiatives to strengthen alumni engagement and fundraising efforts",
+                "Proposed implementation frameworks for alumni outreach and donor relationship management"
+            ]
+        },
+        {
+            "id": "uuid5",
+            "name": "Extreme Combinatorics",
+            "description": "Undergraduate Study Project",
+            "technologies": [],
+            "link": "",
+            "startDate": "",
+            "endDate": "",
+            "bullets": [
+                "Academic research in extreme combinatorics under a faculty mentor"
+            ]
+        }
+    ],
+    "education": [
+        {
+            "id": "uuid6",
+            "school": "Birla Institute of Technology and Science, Pilani – Hyderabad Campus",
+            "degree": "Dual Degree: B.E. Computer Science & M.Sc. Mathematics",
+            "field": "",
+            "startDate": "2024",
+            "endDate": "2029",
+            "grade": "CGPA: 8.27/10.00"
+        }
+    ],
+    "responsibilities": [
+        {
+            "id": "uuid7",
+            "title": "Event Management Head",
+            "organization": "Verba Maximus",
+            "location": "",
+            "startDate": "",
+            "endDate": "",
+            "description": "Leading planning and execution of 10+ events as a Fest Organizing Body (FOB) member, managing logistics, scheduling, and stakeholder communication"
+        },
+        {
+            "id": "uuid8",
+            "title": "Events & Strategy Head",
+            "organization": "English Language Activities Society",
+            "location": "",
+            "startDate": "",
+            "endDate": "",
+            "description": ""
+        },
+        {
+            "id": "uuid9",
+            "title": "Communications & Guest Relations",
+            "organization": "BITS Embryo",
+            "location": "",
+            "startDate": "",
+            "endDate": "",
+            "description": ""
+        },
+        {
+            "id": "uuid10",
+            "title": "Research & Technical Team",
+            "organization": "Ad Astra (Astronomy & Science Club)",
+            "location": "",
+            "startDate": "",
+            "endDate": "",
+            "description": ""
+        },
+        {
+            "id": "uuid11",
+            "title": "Actor",
+            "organization": "Dramatics Club",
+            "location": "",
+            "startDate": "",
+            "endDate": "",
+            "description": ""
+        }
+    ],
+    "achievements": [
+        "Silver Medalist, Singapore & Asian Schools Math Olympiad (SASMO)",
+        "Class X (CBSE): 97.6%",
+        "Class XII (CBSE): 87.6%"
+    ],
+    "skills": [
+        "C",
+        "Python",
+        "Git",
+        "GitHub",
+        "Visual Studio Code",
+        "Jupyter Notebook",
+        "Google Colab",
+        "MS Excel (Basic)"
+    ],
+    "softSkills": []
+}
+```

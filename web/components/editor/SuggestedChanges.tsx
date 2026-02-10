@@ -6,9 +6,11 @@ import { Check, X, Sparkles } from "lucide-react";
 export interface Suggestion {
     type: "suggestion";
     experienceIndex?: number;
+    projectIndex?: number;
+    responsibilityIndex?: number;
     bulletIndex?: number;
     experienceId?: string;  // Stable ID for lookup after reordering
-    section?: string;
+    section?: 'experience' | 'project' | 'responsibility';
     original: string;
     suggested: string;
     reasoning: string;

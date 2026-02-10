@@ -44,12 +44,20 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
     const [uploadedData, setUploadedData] = useState<ResumeData | null>(null);
     const [isRewriting, setIsRewriting] = useState(false);
 
-    // Get current questions based on severity level, filtering out hidden experiences
+    // Get current questions based on severity level, filtering out hidden items
     const analysisQuestions = useMemo(() => {
         return allQuestions[currentSeverity].filter(q => {
-            if (q.experienceId && resumeData?.experience) {
-                const exp = resumeData.experience.find(e => e.id === q.experienceId);
-                if (exp?.hidden) return false;
+            if (q.section === 'experience' && q.experienceId && resumeData?.experience) {
+                const item = resumeData.experience.find(e => e.id === q.experienceId);
+                if (item?.hidden) return false;
+            }
+            if (q.section === 'project' && q.experienceId && resumeData?.projects) {
+                const item = resumeData.projects.find(p => p.id === q.experienceId);
+                if (item?.hidden) return false;
+            }
+            if (q.section === 'responsibility' && q.experienceId && resumeData?.responsibilities) {
+                const item = resumeData.responsibilities.find(r => r.id === q.experienceId);
+                if (item?.hidden) return false;
             }
             return true;
         });
@@ -89,37 +97,57 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
         const updatedData = JSON.parse(JSON.stringify(resumeData)) as ResumeData;
         let replaced = false;
 
-        if (pendingSuggestion.experienceId) {
-            const expIdx = updatedData.experience?.findIndex(e => e.id === pendingSuggestion.experienceId);
-            if (expIdx !== undefined && expIdx >= 0) {
-                const exp = updatedData.experience[expIdx];
-                const bulletIdx = exp.bullets?.findIndex(b => b === pendingSuggestion.original);
-                if (bulletIdx !== undefined && bulletIdx >= 0) {
-                    exp.bullets[bulletIdx] = pendingSuggestion.suggested;
-                    replaced = true;
+        // Helper to update specific section
+        const updateSection = (
+            list: any[],
+            id: string | undefined,
+            idx: number | undefined,
+            bulletIdx: number | undefined
+        ) => {
+            if (id) {
+                const foundIdx = list.findIndex(e => e.id === id);
+                if (foundIdx >= 0) {
+                    const item = list[foundIdx];
+                    const bIdx = item.bullets?.findIndex((b: string) => b === pendingSuggestion.original);
+                    if (bIdx !== undefined && bIdx >= 0) {
+                        item.bullets[bIdx] = pendingSuggestion.suggested;
+                        return true;
+                    }
                 }
             }
-        }
 
-        if (!replaced) {
-            const expIdx = pendingSuggestion.experienceIndex ?? 0;
-            const bulletIdx = pendingSuggestion.bulletIndex ?? 0;
+            // Fallback to index if ID match failed
+            const targetIdx = idx ?? 0;
+            const targetBulletIdx = bulletIdx ?? 0;
 
-            if (
-                updatedData.experience &&
-                updatedData.experience.length > expIdx &&
-                updatedData.experience[expIdx].bullets &&
-                updatedData.experience[expIdx].bullets.length > bulletIdx
-            ) {
-                updatedData.experience[expIdx].bullets[bulletIdx] = pendingSuggestion.suggested;
+            if (list.length > targetIdx && list[targetIdx].bullets && list[targetIdx].bullets.length > targetBulletIdx) {
+                list[targetIdx].bullets[targetBulletIdx] = pendingSuggestion.suggested;
+                return true;
+            }
+            return false;
+        };
+
+        if (pendingSuggestion.section === 'project') {
+            replaced = updateSection(updatedData.projects || [], pendingSuggestion.experienceId, pendingSuggestion.projectIndex, pendingSuggestion.bulletIndex);
+        } else if (pendingSuggestion.section === 'responsibility') {
+            // Responsibilities use 'description', not 'bullets'
+            if (pendingSuggestion.experienceId && updatedData.responsibilities) {
+                const item = updatedData.responsibilities.find(r => r.id === pendingSuggestion.experienceId);
+                if (item) {
+                    item.description = pendingSuggestion.suggested;
+                    replaced = true;
+                }
+            } else if (pendingSuggestion.responsibilityIndex !== undefined && updatedData.responsibilities && updatedData.responsibilities[pendingSuggestion.responsibilityIndex]) {
+                updatedData.responsibilities[pendingSuggestion.responsibilityIndex].description = pendingSuggestion.suggested;
                 replaced = true;
             }
-        } else if (updatedData.experience && updatedData.experience.length > 0) {
-            updatedData.experience[0].bullets = [
-                pendingSuggestion.suggested,
-                ...(updatedData.experience[0].bullets || [])
-            ];
         } else {
+            // Default to experience
+            replaced = updateSection(updatedData.experience || [], pendingSuggestion.experienceId, pendingSuggestion.experienceIndex, pendingSuggestion.bulletIndex);
+        }
+
+        if (!replaced && (!updatedData.experience || updatedData.experience.length === 0)) {
+            // Fallback for empty resume
             updatedData.experience = [{
                 id: Date.now().toString(),
                 company: "Your Company",
@@ -254,17 +282,164 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
 
                     const addSeverity = (questions: unknown[], severity: Severity): AnalysisQuestion[] => {
                         return (questions || []).map((q: unknown) => {
-                            const question = q as AnalysisQuestion;
-                            const expIdx = question.experienceIndex ?? 0;
+                            const question = q as AnalysisQuestion & { id?: string };
+
+                            // 1. Trust the 'section' field if provided by Analyzer
+                            let section: 'experience' | 'project' | 'responsibility' = question.section || 'experience';
+                            let itemId = question.id || question.experienceId; // Analyzer now sends 'id'
+                            let originalBullet: string | undefined;
+
+                            // Indices - resolve from ID if possible
+                            let expIdx = question.experienceIndex;
+                            let projIdx = question.projectIndex;
+                            let respIdx = question.responsibilityIndex;
                             const bulletIdx = question.bulletIndex ?? 0;
-                            const exp = data?.experience?.[expIdx];
+
+                            // Resolve Item and Index based on ID - GLOBAL SEARCH
+                            if (itemId) {
+                                let found = false;
+
+                                // 1. Try Projects
+                                if (data?.projects) {
+                                    const projectsIdx = data.projects.findIndex(p => p.id === itemId);
+                                    if (projectsIdx >= 0) {
+                                        section = 'project';
+                                        projIdx = projectsIdx;
+                                        const item = data.projects[projectsIdx];
+                                        originalBullet = item.bullets?.[bulletIdx];
+                                        found = true;
+                                    }
+                                }
+
+                                // 2. Try Responsibilities
+                                if (!found && data?.responsibilities) {
+                                    const responsibilitiesIdx = data.responsibilities.findIndex(r => r.id === itemId);
+                                    if (responsibilitiesIdx >= 0) {
+                                        section = 'responsibility';
+                                        respIdx = responsibilitiesIdx;
+                                        const item = data.responsibilities[responsibilitiesIdx];
+                                        originalBullet = item.description;
+                                        // Legacy support for bullets if they exist on some objects
+                                        if (!originalBullet && (item as any).bullets?.length) {
+                                            originalBullet = (item as any).bullets[bulletIdx];
+                                        }
+                                        found = true;
+                                    }
+                                }
+
+                                // 3. Try Experience
+                                if (!found && data?.experience) {
+                                    const experienceIdx = data.experience.findIndex(e => e.id === itemId);
+                                    if (experienceIdx >= 0) {
+                                        section = 'experience';
+                                        expIdx = experienceIdx;
+                                        const item = data.experience[experienceIdx];
+                                        originalBullet = item.bullets?.[bulletIdx];
+                                        found = true;
+                                    }
+                                }
+                            }
+
+                            // FALLBACK: Text-based lookup if ID failed or missing
+                            const questionAny = question as any;
+                            if (!originalBullet && questionAny.quote) {
+                                const quote = questionAny.quote.toLowerCase().slice(0, 30); // Use first 30 chars for loose matching
+
+                                // Search Projects
+                                data?.projects?.forEach((p, pIdx) => {
+                                    p.bullets?.forEach((b, bIdx) => {
+                                        if (b.toLowerCase().includes(quote)) {
+                                            section = 'project';
+                                            projIdx = pIdx;
+                                            itemId = p.id; // Update ID
+                                            originalBullet = b;
+                                            itemId = p.id;
+                                        }
+                                    });
+                                });
+
+                                // Search Responsibilities
+                                if (!originalBullet) {
+                                    data?.responsibilities?.forEach((r, rIdx) => {
+                                        if (r.description && r.description.toLowerCase().includes(quote)) {
+                                            section = 'responsibility';
+                                            respIdx = rIdx;
+                                            itemId = r.id;
+                                            originalBullet = r.description;
+                                            itemId = r.id;
+                                        }
+                                        // Also search bullets if present (legacy or specific structure)
+                                        if (!originalBullet && (r as any).bullets) {
+                                            (r as any).bullets.forEach((b: string, bIdx: number) => {
+                                                if (b.toLowerCase().includes(quote)) {
+                                                    section = 'responsibility';
+                                                    respIdx = rIdx;
+                                                    itemId = r.id;
+                                                    originalBullet = b;
+                                                    itemId = r.id;
+                                                }
+                                            });
+                                        }
+                                    });
+                                }
+
+                                // Search Experience
+                                if (!originalBullet) {
+                                    data?.experience?.forEach((e, eIdx) => {
+                                        e.bullets?.forEach((b, bIdx) => {
+                                            if (b.toLowerCase().includes(quote)) {
+                                                section = 'experience';
+                                                expIdx = eIdx;
+                                                itemId = e.id;
+                                                originalBullet = b;
+                                                itemId = e.id;
+                                            }
+                                        });
+                                    });
+                                }
+                            } else {
+                                // Fallback to index-based lookup if ID is missing (legacy support or analyzer failure)
+                                if (question.projectIndex !== undefined) {
+                                    section = 'project';
+                                    const item = data?.projects?.[question.projectIndex];
+                                    itemId = item?.id;
+                                    originalBullet = item?.bullets?.[bulletIdx];
+                                } else if (question.responsibilityIndex !== undefined) {
+                                    section = 'responsibility';
+                                    const item = data?.responsibilities?.[question.responsibilityIndex];
+                                    itemId = item?.id;
+                                    originalBullet = item?.description;
+                                } else {
+                                    section = 'experience';
+                                    expIdx = question.experienceIndex ?? 0;
+                                    const item = data?.experience?.[expIdx];
+                                    itemId = item?.id;
+                                    originalBullet = item?.bullets?.[bulletIdx];
+                                }
+                            }
+
+                            if (!originalBullet) {
+                                console.warn("Analysis Question: Could not find original bullet!", {
+                                    q,
+                                    section,
+                                    itemId
+                                });
+                            } else {
+                                console.log("Analysis Question: Found original bullet", {
+                                    originalBullet: originalBullet.substring(0, 20) + "...",
+                                    section,
+                                    method: question.quote ? "Quote" : "ID/Index"
+                                });
+                            }
+
                             return {
+                                ...question,
+                                section,
                                 experienceIndex: expIdx,
-                                bulletIndex: bulletIdx,
-                                experienceId: exp?.id,
-                                originalBullet: exp?.bullets?.[bulletIdx],
-                                question: question.question,
-                                issue: question.issue,
+                                projectIndex: projIdx,
+                                responsibilityIndex: respIdx,
+                                experienceId: itemId,
+                                originalBullet,
                                 severity
                             };
                         });
@@ -405,20 +580,28 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
         const questions = allQuestions[currentSeverity];
         const idx = questions.findIndex(q =>
             q.experienceIndex === question.experienceIndex &&
+            q.projectIndex === question.projectIndex &&
+            q.responsibilityIndex === question.responsibilityIndex &&
             q.bulletIndex === question.bulletIndex &&
             q.question === question.question
         );
-        const questionKey = `${question.experienceIndex}-${question.bulletIndex}-${idx}`;
+        const questionKey = `${question.experienceIndex ?? 'x'}-${question.projectIndex ?? 'x'}-${question.responsibilityIndex ?? 'x'}-${question.bulletIndex ?? 'x'}-${idx}`;
         setAnsweredQuestions(prev => new Set([...prev, questionKey]));
 
-        let originalBullet = "N/A";
-        if (resumeData?.experience?.[question.experienceIndex]?.bullets?.[question.bulletIndex]) {
-            originalBullet = resumeData.experience[question.experienceIndex].bullets[question.bulletIndex];
+        let originalBullet = question.originalBullet || "N/A";
+        let contextHeader = "";
+
+        if (question.section === 'project') {
+            contextHeader = `Project Job #${(question.projectIndex ?? 0) + 1}, Bullet #${(question.bulletIndex ?? 0) + 1}`;
+        } else if (question.section === 'responsibility') {
+            contextHeader = `Responsibility #${(question.responsibilityIndex ?? 0) + 1}`;
+        } else {
+            contextHeader = `Job #${(question.experienceIndex ?? 0) + 1}, Bullet #${(question.bulletIndex ?? 0) + 1}`;
         }
 
         const contextMessage = {
             role: 'user' as const,
-            content: `[Context: Enhancing Job #${question.experienceIndex + 1}, Bullet #${question.bulletIndex + 1}]
+            content: `[Context: Enhancing ${contextHeader}]
 
 ORIGINAL BULLET (must preserve core content):
 "${originalBullet}"
@@ -451,8 +634,13 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                     if (done) {
                         const { suggestion, textContent } = parseSuggestion(currentContent);
                         if (suggestion) {
+                            suggestion.section = question.section;
                             suggestion.experienceIndex = question.experienceIndex;
+                            suggestion.projectIndex = question.projectIndex;
+                            suggestion.responsibilityIndex = question.responsibilityIndex;
                             suggestion.bulletIndex = question.bulletIndex;
+                            suggestion.experienceId = question.experienceId;
+
                             setPendingSuggestion(suggestion);
                             setMessages(prev => prev.map(m =>
                                 m.id === assistantMessageId ? { ...m, content: textContent || "I have a suggestion:" } : m
@@ -677,7 +865,17 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                                     analysisQuestions.map((q, idx) => {
                                         const questionKey = `${q.experienceIndex}-${q.bulletIndex}-${idx}`;
                                         let contextLabel = "";
-                                        if (resumeData?.experience) {
+                                        if (q.section === 'project' && resumeData?.projects) {
+                                            const proj = resumeData.projects[q.projectIndex ?? 0];
+                                            if (proj) {
+                                                contextLabel = `${proj.name} • Bullet #${(q.bulletIndex ?? 0) + 1}`;
+                                            }
+                                        } else if (q.section === 'responsibility' && resumeData?.responsibilities) {
+                                            const resp = resumeData.responsibilities[q.responsibilityIndex ?? 0];
+                                            if (resp) {
+                                                contextLabel = `${resp.title || resp.organization} • Description`;
+                                            }
+                                        } else if (resumeData?.experience) {
                                             const exp = resumeData.experience[q.experienceIndex ?? 0];
                                             if (exp) {
                                                 const jobTitle = exp.role || exp.company || "Job";

@@ -76,7 +76,7 @@ function findBulletsToRemove(data: ResumeData, targetReduction: number): BulletT
     const weakVerbs = /^(Helped|Assisted|Worked|Participated|Supported|Contributed|Involved|Attended|Learned|Observed)/i;
     const hasMetrics = /\d+%|\d+x|\$[\d,]+|\d+\s*(users|customers|hours|days|weeks|months|people|teams|projects|clients|members|employees)/i;
 
-    data.experience?.forEach((exp, expIdx) => {
+    (data.experience || []).forEach((exp, expIdx) => {
         if ((exp.bullets?.length || 0) > 1) {
             exp.bullets?.forEach((bullet, bulletIdx) => {
                 let score = 0;
@@ -135,7 +135,7 @@ function findWeakExperiences(data: ResumeData): ExperienceToRemove[] {
     const strongVerbs = /^(Led|Built|Designed|Increased|Reduced|Launched|Managed|Created|Developed|Implemented|Achieved|Grew|Generated|Drove|Spearheaded|Optimized|Secured|Negotiated)/i;
     const hasMetrics = /\d+%|\d+x|\$[\d,]+|\d+\s*(users|customers|hours|days|weeks|months|people|teams|projects|clients|members|employees)/i;
 
-    data.experience?.forEach((exp, expIdx) => {
+    (data.experience || []).forEach((exp, expIdx) => {
         let score = 0;
         let reason = '';
         const bullets = exp.bullets || [];
@@ -300,7 +300,7 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
         setPreviousData(JSON.parse(JSON.stringify(data)));
         setPreviousFontScale(fontScale);
         const updatedData = JSON.parse(JSON.stringify(data)) as ResumeData;
-        if (updatedData.experience[expIdx]?.bullets) {
+        if (updatedData.experience && updatedData.experience[expIdx]?.bullets) {
             updatedData.experience[expIdx].bullets.splice(bulletIdx, 1);
             onResumeUpdate(updatedData);
         }
@@ -316,7 +316,7 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
             return b.bulletIndex - a.bulletIndex;
         });
         sortedRemovals.forEach(bullet => {
-            if (updatedData.experience[bullet.experienceIndex]?.bullets) {
+            if (updatedData.experience && updatedData.experience[bullet.experienceIndex]?.bullets) {
                 updatedData.experience[bullet.experienceIndex].bullets.splice(bullet.bulletIndex, 1);
             }
         });
@@ -426,8 +426,8 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                         </div>
 
                         {/* Drag and Drop Sections */}
-                        <Reorder.Group axis="y" values={data.sectionOrder || []} onReorder={handleSectionReorder}>
-                            {(data.sectionOrder || []).map((section) => (
+                        <Reorder.Group axis="y" values={data.sectionOrder || ['education', 'experience', 'responsibilities', 'projects', 'achievements', 'skills']} onReorder={handleSectionReorder}>
+                            {(data.sectionOrder || ['education', 'experience', 'responsibilities', 'projects', 'achievements', 'skills']).map((section) => (
                                 <Reorder.Item key={section} value={section} dragListener={isReordering}>
                                     <div className={cn("relative group/section transition-colors rounded-sm", isReordering && "hover:bg-blue-50/50 cursor-grab active:cursor-grabbing border border-transparent hover:border-blue-200")}>
                                         {isReordering && (
@@ -447,7 +447,7 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                                         className="text-[0.95em] font-bold text-blue-800 uppercase tracking-wider"
                                                     />
                                                 </div>
-                                                {data.education.filter(edu => !edu.hidden).map((edu, idx) => (
+                                                {(data.education || []).filter(edu => !edu.hidden).map((edu, idx) => (
                                                     <div key={idx} className="mb-0.5">
                                                         <div className="flex justify-between">
                                                             <EditableText value={edu.school} onChange={(val) => updateEducation(idx, 'school', val)} className="font-bold" placeholder="University Name" />
@@ -477,7 +477,7 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                                         className="text-[0.95em] font-bold text-blue-800 uppercase tracking-wider"
                                                     />
                                                 </div>
-                                                {data.experience.filter(exp => !exp.hidden).map((exp, idx) => (
+                                                {(data.experience || []).filter(exp => !exp.hidden).map((exp, idx) => (
                                                     <div key={idx} className="mb-1.5">
                                                         <div className="flex justify-between items-baseline mb-0.5">
                                                             <EditableText value={exp.role} onChange={(val) => updateExperience(idx, 'role', val)} className="font-bold" style={{ fontSize: `${titleScale}em` }} placeholder="Job Title" />
@@ -518,7 +518,7 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                                         className="text-[0.95em] font-bold text-blue-800 uppercase tracking-wider"
                                                     />
                                                 </div>
-                                                {data.responsibilities.filter(resp => !resp.hidden).map((resp, idx) => (
+                                                {(data.responsibilities || []).filter(resp => !resp.hidden).map((resp, idx) => (
                                                     <div key={idx} className="mb-1">
                                                         <div className="flex justify-between items-baseline mb-0.5">
                                                             <EditableText value={resp.title} onChange={(val) => updateResponsibility(idx, 'title', val)} className="font-bold" style={{ fontSize: `${titleScale}em` }} placeholder="Role Title" />
@@ -582,7 +582,7 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                                         className="text-[0.95em] font-bold text-blue-800 uppercase tracking-wider"
                                                     />
                                                 </div>
-                                                {data.projects.filter(proj => !proj.hidden).map((proj, idx) => (
+                                                {(data.projects || []).filter(proj => !proj.hidden).map((proj, idx) => (
                                                     <div key={idx} className="mb-1">
                                                         <div className="flex justify-between items-baseline mb-0.5">
                                                             <EditableText value={proj.name} onChange={(val) => updateProject(idx, 'name', val)} className="font-bold" style={{ fontSize: `${titleScale}em` }} placeholder="Project Name" />
