@@ -50,6 +50,7 @@ export interface ResumeResponsibility {
     startDate: string;
     endDate: string;
     description: string;
+    bullets?: string[];
     hidden?: boolean;
 }
 

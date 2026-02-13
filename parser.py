@@ -22,8 +22,33 @@ def parse_resume(file_path):
         for page in reader.pages:
             text += page.extract_text() + "\n"
         
+        # 1b. Extract hyperlink annotations (PDF stores URLs separately from text)
+        links = []
+        for page in reader.pages:
+            if "/Annots" in page:
+                for annot in page["/Annots"]:
+                    try:
+                        annot_obj = annot.get_object()
+                        if annot_obj.get("/Subtype") == "/Link" and "/A" in annot_obj:
+                            action = annot_obj["/A"]
+                            if "/URI" in action:
+                                uri = action["/URI"]
+                                if uri and isinstance(uri, str):
+                                    links.append(uri)
+                    except Exception:
+                        pass
+        
+        if links:
+            text += "\n\n--- EXTRACTED HYPERLINKS FROM PDF ---\n"
+            for link in links:
+                text += f"- {link}\n"
+        
         if not text.strip():
             return {"error": "No text extracted from PDF"}
+
+        # DEBUG: Save extracted text
+        with open("debug_extracted_text.txt", "w", encoding="utf-8") as f:
+            f.write(text)
 
         # 2. Call Groq
         api_key = os.getenv("GROQ_API_KEY")
@@ -111,6 +136,7 @@ def parse_resume(file_path):
                     "description": "Brief description", 
                     "technologies": ["React", "Python"], 
                     "link": "github/demo link", 
+                    "github": "github.com/...",
                     "startDate": "MM/YYYY or YYYY",
                     "endDate": "MM/YYYY, YYYY or Present",
                     "bullets": ["Key contribution 1", "Key contribution 2"] 
@@ -120,8 +146,8 @@ def parse_resume(file_path):
                 { 
                     "id": "uuid", 
                     "school": "University Name", 
-                    "degree": "Degree Name (e.g. BS Computer Science)", 
-                    "field": "Field of Study", 
+                    "degree": "Masters / Bachelors / B.Tech / M.S. etc (degree type only, NOT the field)", 
+                    "field": "Computer Science / Physics / Electronics etc (the major/specialization)", 
                     "startDate": "Year", 
                     "endDate": "Year", 
                     "grade": "GPA/Grade" 
@@ -135,7 +161,8 @@ def parse_resume(file_path):
                     "location": "", 
                     "startDate": "", 
                     "endDate": "", 
-                    "description": "Brief description of duties" 
+                    "description": "Brief description of duties",
+                    "bullets": ["Action/Result 1", "Action/Result 2"]
                 } 
             ],
             "achievements": [ 
@@ -189,6 +216,14 @@ def parse_resume(file_path):
         - "Skills", "Technical Skills", "Stack" -> **skills**
         - "Achievements", "Awards", "Certifications", "Honors" -> **achievements**
 
+        9. **EDUCATION PARSING**:
+           - **degree**: ONLY the degree type (e.g., "Masters in Physics", "B.Tech", "Bachelors", "B.E.").
+           - **field**: The major/specialization/branch SEPARATE from degree (e.g., "Electronics and Electrical Engineering", "Computer Science").
+           - If the resume says "B.Tech in Computer Science", degree = "B.Tech", field = "Computer Science".
+           - If someone has dual degrees like "M.Sc. Physics + B.E. Electronics", put the primary or first one's type in degree, and use field for the specialization.
+           - If field is not explicitly stated or is already fully contained in the degree string, use empty string "" for field.
+           - **NEVER** put the literal word "Major" as the field value. Extract the actual major name or leave empty.
+        
         URL DETECTION RULES (profile section):
         6. **linkedin**: Look for URLs containing "linkedin.com/in/" - extract the full profile URL.
         7. **github**: Look for URLs containing "github.com/" - extract the full profile URL (not repo links).
@@ -196,6 +231,7 @@ def parse_resume(file_path):
            - Common patterns: behance.net, dribbble.com, portfolio sites, personal domains with names.
         9. If a URL is displayed as anchor text only (e.g., just "LinkedIn" or "GitHub"), still extract if possible or note only.
         10. URLs may appear in the header/contact section or scattered in the resume text.
+        11. PDFs often lose hyperlinks during text extraction. Look for text patterns like "github.com/username" even without "https://" prefix.
 
         OUTPUT INSTRUCTIONS:
         - Return ONLY valid JSON.
@@ -215,16 +251,49 @@ def parse_resume(file_path):
 
         result = completion.choices[0].message.content
         
+        # DEBUG: Save raw LLM response
+        with open("debug_llm_response.txt", "w", encoding="utf-8") as f:
+            f.write(result)
+        
         # Clean result
         result = result.replace("```json", "").replace("```", "").strip()
         
         # Validate JSON
         parsed_json = json.loads(result)
         
-        # Output to stdout
-        return parsed_json
+        parsed_data = parsed_json
 
+        # POST-PROCESSING: Ensure every item has a unique ID
+        import uuid
+        
+        def ensure_ids(items):
+            if not isinstance(items, list): return
+            for item in items:
+                if isinstance(item, dict):
+                    if 'id' not in item or item['id'] == 'uuid' or not item['id']:
+                        item['id'] = str(uuid.uuid4())
+
+        ensure_ids(parsed_data.get('responsibilities', []))
+
+        # POST-PROCESSING: Regex Fallback for URLs
+        import re
+        if not parsed_data.get('profile', {}).get('linkedin'):
+            linkedin_match = re.search(r'(https?://)?(www\.)?linkedin\.com/in/[a-zA-Z0-9_-]+', text)
+            if linkedin_match:
+                if 'profile' not in parsed_data: parsed_data['profile'] = {}
+                parsed_data['profile']['linkedin'] = linkedin_match.group(0)
+        
+        if not parsed_data.get('profile', {}).get('github'):
+            github_match = re.search(r'(https?://)?(www\.)?github\.com/[a-zA-Z0-9_-]+', text)
+            if github_match:
+                if 'profile' not in parsed_data: parsed_data['profile'] = {}
+                parsed_data['profile']['github'] = github_match.group(0)
+
+        return parsed_data
+        
     except Exception as e:
+        print(f"Error parsing resume: {e}", file=sys.stderr)
+        traceback.print_exc()
         error_info = {
             "error": str(e),
             "trace": traceback.format_exc()

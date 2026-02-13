@@ -83,6 +83,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                     if (json.experience) json.experience = json.experience.map(addId);
                     if (json.projects) json.projects = json.projects.map(addId);
                     if (json.education) json.education = json.education.map(addId);
+                    if (json.responsibilities) json.responsibilities = json.responsibilities.map(addId);
+
+                    // Post-process: strip trailing "Remote" from company names
+                    if (json.experience) {
+                        json.experience = json.experience.map((exp: Record<string, unknown>) => {
+                            const company = (exp.company as string) || '';
+                            if (company.match(/\s+Remote$/i)) {
+                                return {
+                                    ...exp,
+                                    company: company.replace(/\s+Remote$/i, '').trim(),
+                                    location: (exp.location as string) || 'Remote'
+                                };
+                            }
+                            return exp;
+                        });
+                    }
 
                     resolve(NextResponse.json(json));
 

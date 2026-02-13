@@ -10,6 +10,7 @@ export interface Suggestion {
     responsibilityIndex?: number;
     bulletIndex?: number;
     experienceId?: string;  // Stable ID for lookup after reordering
+    sourceQuestionId?: string; // Strict link to the question that generated this suggestion
     section?: 'experience' | 'project' | 'responsibility';
     original: string;
     suggested: string;

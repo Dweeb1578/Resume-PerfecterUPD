@@ -17,6 +17,16 @@ def analyze_resume(resume_json_str):
              print(json.dumps({"error": "No resume data provided"}))
              return
 
+        # DEBUG: Print incoming resume structure to server logs
+        try:
+             debug_json = json.loads(resume_json_str)
+             print(f"DEBUG_ANALYZER_INPUT: Experience Count: {len(debug_json.get('experience', []))}", file=sys.stderr)
+             print(f"DEBUG_ANALYZER_INPUT: Projects Count: {len(debug_json.get('projects', []))}", file=sys.stderr)
+             print(f"DEBUG_ANALYZER_INPUT: Responsibilities Count: {len(debug_json.get('responsibilities', []))}", file=sys.stderr)
+             print(f"DEBUG_ANALYZER_INPUT: Full JSON Keys: {list(debug_json.keys())}", file=sys.stderr)
+        except:
+             print("DEBUG_ANALYZER_INPUT: Could not parse input JSON for debug", file=sys.stderr)
+
         # 2. Call Groq
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
@@ -25,75 +35,102 @@ def analyze_resume(resume_json_str):
 
         client = Groq(api_key=api_key)
         
-        system_prompt = """
-        You are an expert Resume Critic from top tech companies (Google, Meta, etc.).
-        Analyze the provided resume JSON and identify specific issues with bullets/descriptions in experience, projects, AND responsibilities (positions of responsibility).
-        
-        Your output must be a strict JSON object with this format:
-        {
-            "intro": "A 1-sentence high-level summary of the resume's strength.",
-            "critical": [
-                {"experienceIndex": 0, "bulletIndex": 1, "question": "Clarifying question?", "issue": "Why this is critical"},
-                {"projectIndex": 0, "bulletIndex": 0, "question": "...", "issue": "..."},
-                {"responsibilityIndex": 0, "question": "...", "issue": "..."}
-            ],
-            "warning": [ ...same format, can have experienceIndex, projectIndex, OR responsibilityIndex... ],
-            "niceToHave": [ ...same format... ]
+        parsed_data = debug_json
+
+        # 3. Analyze Sections Individually (Divide & Conquer)
+        final_output = {
+            "intro": "",
+            "critical": [],
+            "warning": [],
+            "niceToHave": []
         }
-        
-        CATEGORIES:
-        - **Critical**: Missing metrics for major claims, vague impact, spelling/grammar errors, lies, major red flags, or WEAK POINTS THAT SHOULD BE REMOVED (suggest hiding them).
-        - **Warning**: Weak action verbs, passive voice, confusing phrasing, lack of context, or generic statements that add no value.
-        - **NiceToHave**: Suggestions to make it "perfect" (e.g. better quantifiers, removing filler words).
-        
-        RULES:
-        1. Reference `experienceIndex` + `bulletIndex` for experience, `projectIndex` + `bulletIndex` for projects, OR `responsibilityIndex` for positions of responsibility.
-        2. Be extremely specific. "Action verb is weak" is bad. "Changed 'Worked on' to 'Spearheaded' to show leadership" is good.
-        3. Do NOT hallucinate indices. Only critique existing items.
-        4. For weak, generic, or low-value items, suggest the user HIDE them to save space.
-        5. Analyze `experience`, `projects`, AND `responsibilities` sections thoroughly.
-        6. Return ONLY raw JSON.
-        """
 
-        completion = client.chat.completions.create(
-            messages=[
-                { "role": "system", "content": system_prompt },
-                { "role": "user", "content": f"Resume JSON:\n{resume_json_str}" }
-            ],
-            model="llama-3.3-70b-versatile",
-            temperature=0.1, # Low temperature for consistent structure but slight creativity in critique
-            stream=False,
-        )
+        sections_to_analyze = [
+            ("experience", parsed_data.get("experience", [])),
+            ("project", parsed_data.get("projects", [])),
+            ("responsibility", parsed_data.get("responsibilities", [])) # Note: parser uses 'responsibilities', output uses 'responsibility' singular usuallly but strict json says 'responsibility'
+        ]
 
-        result = completion.choices[0].message.content
+        # Shared client
+        client = Groq(api_key=api_key)
         
-        # Clean result - remove markdown code blocks
-        result = result.replace("```json", "").replace("```", "").strip()
-        
-        # Extract JSON object using brace counting (handles extra text after JSON)
-        start_idx = result.find('{')
-        if start_idx == -1:
-            print(json.dumps({"error": "No JSON object found in response"}))
-            return
-        
-        brace_count = 0
-        end_idx = start_idx
-        for i, char in enumerate(result[start_idx:], start=start_idx):
-            if char == '{':
-                brace_count += 1
-            elif char == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    end_idx = i + 1
-                    break
-        
-        json_str = result[start_idx:end_idx]
-        
-        # Validate JSON
-        parsed_json = json.loads(json_str)
-        
+        # Function to analyze a specific list of items
+        def analyze_section_items(section_name, items):
+            if not items: return None
+            
+            # Detailed prompt for focused analysis with all categories
+            prompt = f"""
+            You are an expert Resume Critic.
+            Analyze ONLY the following `{section_name}` items from a resume.
+            
+            ITEMS TO ANALYZE:
+            {json.dumps(items, indent=2)}
+
+            OUTPUT FORMAT (Strict JSON):
+            {{
+                "critical": [ {{"section": "{section_name}", "id": "uuid", "quote": "text", "bulletIndex": 0, "question": "...", "issue": "..."}} ],
+                "warning": [ {{"section": "{section_name}", "id": "uuid", "quote": "text", "bulletIndex": 0, "question": "...", "issue": "..."}} ],
+                "niceToHave": [ {{"section": "{section_name}", "id": "uuid", "quote": "text", "bulletIndex": 0, "question": "...", "issue": "..."}} ]
+            }}
+
+            CATEGORIES:
+            - **Critical**: Missing metrics, vague claims, grammar errors, weak impact.
+            - **Warning**: Passive voice, generic phrases ("Responsible for"), lack of context.
+            - **NiceToHave**: Suggestions to make it perfect (stronger verbs, better formatting).
+
+            RULES:
+            1. Analyze EVERY item in the list.
+            2. Return "id", "quote", "bulletIndex" exactly as in input.
+            3. "section" must be "{section_name}".
+            4. Provide a mix of Critical, Warning, and NiceToHave. Do not mark everything as Critical.
+            """
+
+            try:
+                msg = client.chat.completions.create(
+                    messages=[
+                        { "role": "system", "content": prompt },
+                        { "role": "user", "content": "Analyze these items." }
+                    ],
+                    model="llama-3.3-70b-versatile",
+                    temperature=0.1,
+                    stream=False,
+                )
+                txt = msg.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+                # find brace
+                s = txt.find('{')
+                e = txt.rfind('}') + 1
+                return json.loads(txt[s:e])
+            except Exception as e:
+                print(f"DEBUG: Failed to analyze {section_name}: {e}", file=sys.stderr)
+                return None
+
+        # Execute analysis
+        for name, items in sections_to_analyze:
+            print(f"DEBUG: Analyzing section: {name} ({len(items)} items)", file=sys.stderr)
+            res = analyze_section_items(name, items)
+            if res:
+                final_output["critical"].extend(res.get("critical", []))
+                final_output["warning"].extend(res.get("warning", []))
+                final_output["niceToHave"].extend(res.get("niceToHave", []))
+
+        # Generate Intro (Separate quick call or just generic)
+        try:
+            intro_prompt = f"""
+            Based on this resume profile, write a 1-sentence summary of its strength.
+            Profile: {json.dumps(parsed_data.get('profile', {}))}
+            Experience Titles: {[e.get('role') for e in parsed_data.get('experience', [])]}
+            """
+            intro_msg = client.chat.completions.create(
+                messages=[{"role": "user", "content": intro_prompt}],
+                model="llama-3.3-70b-versatile",
+                temperature=0.3
+            )
+            final_output["intro"] = intro_msg.choices[0].message.content.strip()
+        except:
+            final_output["intro"] = "Here is the analysis of your resume."
+
         # Output to stdout
-        print(json.dumps(parsed_json))
+        print(json.dumps(final_output))
 
     except Exception as e:
         error_info = {

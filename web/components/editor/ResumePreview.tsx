@@ -422,6 +422,18 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                 <EditableText value={data.profile.phone} onChange={(val) => handleUpdateProfile('phone', val)} placeholder="Phone" />
                                 <span className="text-zinc-400">|</span>
                                 <EditableText value={data.profile.email} onChange={(val) => handleUpdateProfile('email', val)} placeholder="Email" />
+                                {data.profile.linkedin && (
+                                    <><span className="text-zinc-400">|</span>
+                                        <EditableText value={data.profile.linkedin} onChange={(val) => handleUpdateProfile('linkedin', val)} placeholder="LinkedIn" /></>
+                                )}
+                                {data.profile.github && (
+                                    <><span className="text-zinc-400">|</span>
+                                        <EditableText value={data.profile.github} onChange={(val) => handleUpdateProfile('github', val)} placeholder="GitHub" /></>
+                                )}
+                                {data.profile.website && (
+                                    <><span className="text-zinc-400">|</span>
+                                        <EditableText value={data.profile.website} onChange={(val) => handleUpdateProfile('website', val)} placeholder="Website" /></>
+                                )}
                             </div>
                         </div>
 
@@ -459,8 +471,10 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                                         </div>
                                                         <div className="text-[0.85em] italic text-zinc-600 flex gap-1">
                                                             <EditableText value={edu.degree} onChange={(val) => updateEducation(idx, 'degree', val)} placeholder="Degree" />
-                                                            <span>in</span>
-                                                            <EditableText value={edu.field} onChange={(val) => updateEducation(idx, 'field', val)} placeholder="Major" />
+                                                            {edu.field && !edu.degree?.toLowerCase().includes(edu.field.toLowerCase()) && (
+                                                                <><span>in</span>
+                                                                    <EditableText value={edu.field} onChange={(val) => updateEducation(idx, 'field', val)} placeholder="Major" /></>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -489,7 +503,9 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                                         </div>
                                                         <div className="flex justify-between text-[0.85em] mb-0.5">
                                                             <EditableText value={exp.company} onChange={(val) => updateExperience(idx, 'company', val)} className="font-semibold italic text-zinc-600" placeholder="Company Name" />
-                                                            <EditableText value={exp.location} onChange={(val) => updateExperience(idx, 'location', val)} className="text-zinc-500" placeholder="City, Country" />
+                                                            {exp.location && exp.location.toLowerCase() !== 'remote' && (
+                                                                <EditableText value={exp.location} onChange={(val) => updateExperience(idx, 'location', val)} className="text-zinc-500" placeholder="" />
+                                                            )}
                                                         </div>
                                                         <ul className="ml-4 space-y-0 text-justify">
                                                             {exp.bullets?.map((bullet, bulletIdx) => (
@@ -530,17 +546,38 @@ export function ResumePreview({ data, onResumeUpdate }: ResumePreviewProps) {
                                                         </div>
                                                         <div className="flex justify-between text-[0.85em] mb-0.5">
                                                             <EditableText value={resp.organization} onChange={(val) => updateResponsibility(idx, 'organization', val)} className="italic text-zinc-600" placeholder="Organization" />
-                                                            <EditableText value={resp.location} onChange={(val) => updateResponsibility(idx, 'location', val)} className="text-zinc-500" placeholder="Location" />
+                                                            {resp.location && resp.location.toLowerCase() !== 'remote' && (
+                                                                <EditableText value={resp.location} onChange={(val) => updateResponsibility(idx, 'location', val)} className="text-zinc-500" placeholder="" />
+                                                            )}
                                                         </div>
                                                         <ul className="ml-4 space-y-0 text-justify">
-                                                            <li className="text-[0.9em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
-                                                                <EditableText
-                                                                    value={resp.description}
-                                                                    onChange={(val) => updateResponsibility(idx, 'description', val)}
-                                                                    renderPreview={(val) => highlightMetrics(val, data.skills)}
-                                                                    multiline={true}
-                                                                />
-                                                            </li>
+                                                            {resp.description ? (
+                                                                <li className="text-[0.9em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
+                                                                    <EditableText
+                                                                        value={resp.description}
+                                                                        onChange={(val) => updateResponsibility(idx, 'description', val)}
+                                                                        renderPreview={(val) => highlightMetrics(val, data.skills)}
+                                                                        multiline={true}
+                                                                    />
+                                                                </li>
+                                                            ) : resp.bullets && resp.bullets.length > 0 ? (
+                                                                resp.bullets.map((bullet, bIdx) => (
+                                                                    <li key={bIdx} className="text-[0.9em] pl-1 relative before:content-['•'] before:absolute before:-left-3 before:text-zinc-400">
+                                                                        <EditableText
+                                                                            value={bullet}
+                                                                            onChange={(val) => {
+                                                                                const newBullets = [...(resp.bullets || [])];
+                                                                                newBullets[bIdx] = val;
+                                                                                const newResp = [...(data.responsibilities || [])];
+                                                                                newResp[idx] = { ...resp, bullets: newBullets };
+                                                                                onResumeUpdate?.({ ...data, responsibilities: newResp });
+                                                                            }}
+                                                                            renderPreview={(val) => highlightMetrics(val, data.skills)}
+                                                                            multiline={true}
+                                                                        />
+                                                                    </li>
+                                                                ))
+                                                            ) : null}
                                                         </ul>
                                                     </div>
                                                 ))}

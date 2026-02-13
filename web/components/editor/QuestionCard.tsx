@@ -8,6 +8,7 @@ import { useState } from "react";
 export type Severity = 'critical' | 'warning' | 'niceToHave';
 
 export interface AnalysisQuestion {
+    id: string; // Unique ID for React key and state tracking
     section?: 'experience' | 'project' | 'responsibility';
     experienceIndex?: number;
     projectIndex?: number;
@@ -29,6 +30,7 @@ export interface Suggestion {
     responsibilityIndex?: number;
     bulletIndex?: number;
     experienceId?: string;  // Stable ID for lookup after reordering
+    sourceQuestionId?: string;
     original: string;
     suggested: string;
     reasoning: string;
@@ -103,9 +105,22 @@ export function QuestionCard({
     };
 
     // Check if this question has a pending suggestion
-    const hasSuggestion = pendingSuggestion &&
-        pendingSuggestion.experienceIndex === question.experienceIndex &&
-        pendingSuggestion.bulletIndex === question.bulletIndex;
+    // STRICT MATCHING: Use sourceQuestionId if available (guarantees 1-to-1 mapping)
+    const hasSuggestion = pendingSuggestion && (
+        (pendingSuggestion.sourceQuestionId && pendingSuggestion.sourceQuestionId === question.id) ||
+        (!pendingSuggestion.sourceQuestionId && (
+            (pendingSuggestion.experienceId && question.experienceId && pendingSuggestion.experienceId === question.experienceId && pendingSuggestion.bulletIndex === question.bulletIndex) ||
+            (
+                pendingSuggestion.section === question.section &&
+                pendingSuggestion.bulletIndex === question.bulletIndex &&
+                (
+                    (question.section === 'project' && pendingSuggestion.projectIndex === question.projectIndex) ||
+                    (question.section === 'responsibility' && pendingSuggestion.responsibilityIndex === question.responsibilityIndex) ||
+                    (question.section === 'experience' && pendingSuggestion.experienceIndex === question.experienceIndex)
+                )
+            )
+        ))
+    );
 
     // Answered with suggestion - show the suggestion card inline
     if (isAnswered && hasSuggestion) {

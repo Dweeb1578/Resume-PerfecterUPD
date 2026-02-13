@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { PremiumButton } from "@/components/ui/PremiumButton";
 import { Input } from "@/components/ui/input";
-import { Send, Paperclip, Loader2, Lightbulb, Sparkles } from "lucide-react";
+import { Send, Paperclip, Loader2, Sparkles } from "lucide-react";
 import { ResumeData } from "@/types/resume";
 import { SuggestedChanges, Suggestion } from "./SuggestedChanges";
 import { QuestionCard, AnalysisQuestion, Severity } from "./QuestionCard";
@@ -43,6 +43,7 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
     const [mode, setMode] = useState<'chat' | 'selection'>('chat');
     const [uploadedData, setUploadedData] = useState<ResumeData | null>(null);
     const [isRewriting, setIsRewriting] = useState(false);
+    const [visibleQuestionCount, setVisibleQuestionCount] = useState(3);
 
     // Get current questions based on severity level, filtering out hidden items
     const analysisQuestions = useMemo(() => {
@@ -284,9 +285,21 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                         return (questions || []).map((q: unknown) => {
                             const question = q as AnalysisQuestion & { id?: string };
 
-                            // 1. Trust the 'section' field if provided by Analyzer
-                            let section: 'experience' | 'project' | 'responsibility' = question.section || 'experience';
-                            let itemId = question.id || question.experienceId; // Analyzer now sends 'id'
+                            // DEBUG: Log raw question from analyzer
+                            console.log('📋 Raw analyzer question:', JSON.stringify({
+                                section: question.section,
+                                id: question.id,
+                                quote: (question.quote || '').substring(0, 50),
+                                bulletIndex: question.bulletIndex,
+                            }));
+
+                            // 1. Normalize section name from LLM (handle plural variants)
+                            let rawSection = (question.section || 'experience') as string;
+                            if (rawSection === 'projects') rawSection = 'project';
+                            if (rawSection === 'responsibilities') rawSection = 'responsibility';
+                            let section = rawSection as 'experience' | 'project' | 'responsibility';
+                            const llmSection = section; // Save the LLM's section hint
+                            let itemId = question.id || question.experienceId;
                             let originalBullet: string | undefined;
 
                             // Indices - resolve from ID if possible
@@ -295,65 +308,56 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                             let respIdx = question.responsibilityIndex;
                             const bulletIdx = question.bulletIndex ?? 0;
 
-                            // Resolve Item and Index based on ID - GLOBAL SEARCH
-                            if (itemId) {
-                                let found = false;
-
-                                // 1. Try Projects
+                            // 2. GLOBAL ID SEARCH - highest confidence
+                            let idResolved = false;
+                            if (itemId && itemId !== 'uuid') {
+                                // Try Projects
                                 if (data?.projects) {
                                     const projectsIdx = data.projects.findIndex(p => p.id === itemId);
                                     if (projectsIdx >= 0) {
                                         section = 'project';
                                         projIdx = projectsIdx;
-                                        const item = data.projects[projectsIdx];
-                                        originalBullet = item.bullets?.[bulletIdx];
-                                        found = true;
+                                        originalBullet = data.projects[projectsIdx].bullets?.[bulletIdx];
+                                        idResolved = true;
                                     }
                                 }
-
-                                // 2. Try Responsibilities
-                                if (!found && data?.responsibilities) {
+                                // Try Responsibilities
+                                if (!idResolved && data?.responsibilities) {
                                     const responsibilitiesIdx = data.responsibilities.findIndex(r => r.id === itemId);
                                     if (responsibilitiesIdx >= 0) {
                                         section = 'responsibility';
                                         respIdx = responsibilitiesIdx;
                                         const item = data.responsibilities[responsibilitiesIdx];
-                                        originalBullet = item.description;
-                                        // Legacy support for bullets if they exist on some objects
-                                        if (!originalBullet && (item as any).bullets?.length) {
-                                            originalBullet = (item as any).bullets[bulletIdx];
-                                        }
-                                        found = true;
+                                        originalBullet = item.description || item.bullets?.[bulletIdx];
+                                        idResolved = true;
                                     }
                                 }
-
-                                // 3. Try Experience
-                                if (!found && data?.experience) {
+                                // Try Experience
+                                if (!idResolved && data?.experience) {
                                     const experienceIdx = data.experience.findIndex(e => e.id === itemId);
                                     if (experienceIdx >= 0) {
                                         section = 'experience';
                                         expIdx = experienceIdx;
-                                        const item = data.experience[experienceIdx];
-                                        originalBullet = item.bullets?.[bulletIdx];
-                                        found = true;
+                                        originalBullet = data.experience[experienceIdx].bullets?.[bulletIdx];
+                                        idResolved = true;
                                     }
                                 }
+                                console.log(idResolved ? `✅ ID lookup found: section=${section}` : `⚠️ ID lookup failed for: ${itemId}`);
                             }
 
-                            // FALLBACK: Text-based lookup if ID failed or missing
+                            // 3. QUOTE SEARCH - fallback if ID failed
                             const questionAny = question as any;
                             if (!originalBullet && questionAny.quote) {
-                                const quote = questionAny.quote.toLowerCase().slice(0, 30); // Use first 30 chars for loose matching
+                                const quote = questionAny.quote.toLowerCase().slice(0, 30);
 
                                 // Search Projects
                                 data?.projects?.forEach((p, pIdx) => {
-                                    p.bullets?.forEach((b, bIdx) => {
+                                    p.bullets?.forEach((b) => {
                                         if (b.toLowerCase().includes(quote)) {
                                             section = 'project';
                                             projIdx = pIdx;
-                                            itemId = p.id; // Update ID
-                                            originalBullet = b;
                                             itemId = p.id;
+                                            originalBullet = b;
                                         }
                                     });
                                 });
@@ -366,17 +370,14 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                                             respIdx = rIdx;
                                             itemId = r.id;
                                             originalBullet = r.description;
-                                            itemId = r.id;
                                         }
-                                        // Also search bullets if present (legacy or specific structure)
-                                        if (!originalBullet && (r as any).bullets) {
-                                            (r as any).bullets.forEach((b: string, bIdx: number) => {
+                                        if (!originalBullet && r.bullets) {
+                                            r.bullets.forEach((b: string) => {
                                                 if (b.toLowerCase().includes(quote)) {
                                                     section = 'responsibility';
                                                     respIdx = rIdx;
                                                     itemId = r.id;
                                                     originalBullet = b;
-                                                    itemId = r.id;
                                                 }
                                             });
                                         }
@@ -386,54 +387,63 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                                 // Search Experience
                                 if (!originalBullet) {
                                     data?.experience?.forEach((e, eIdx) => {
-                                        e.bullets?.forEach((b, bIdx) => {
+                                        e.bullets?.forEach((b) => {
                                             if (b.toLowerCase().includes(quote)) {
                                                 section = 'experience';
                                                 expIdx = eIdx;
                                                 itemId = e.id;
                                                 originalBullet = b;
-                                                itemId = e.id;
                                             }
                                         });
                                     });
                                 }
-                            } else {
-                                // Fallback to index-based lookup if ID is missing (legacy support or analyzer failure)
-                                if (question.projectIndex !== undefined) {
+
+                                if (originalBullet) {
+                                    console.log(`✅ Quote lookup found: section=${section}`);
+                                } else {
+                                    console.warn(`⚠️ Quote lookup failed for: "${quote}..."`);
+                                }
+                            } else if (!originalBullet) {
+                                // 4. INDEX FALLBACK - use LLM section to guide index lookup
+                                if (llmSection === 'project' && data?.projects?.length) {
                                     section = 'project';
-                                    const item = data?.projects?.[question.projectIndex];
+                                    projIdx = projIdx ?? 0;
+                                    const item = data.projects[projIdx];
                                     itemId = item?.id;
                                     originalBullet = item?.bullets?.[bulletIdx];
-                                } else if (question.responsibilityIndex !== undefined) {
+                                } else if (llmSection === 'responsibility' && data?.responsibilities?.length) {
                                     section = 'responsibility';
-                                    const item = data?.responsibilities?.[question.responsibilityIndex];
+                                    respIdx = respIdx ?? 0;
+                                    const item = data.responsibilities[respIdx];
                                     itemId = item?.id;
-                                    originalBullet = item?.description;
-                                } else {
+                                    originalBullet = item?.description || item?.bullets?.[bulletIdx];
+                                } else if (data?.experience?.length) {
                                     section = 'experience';
-                                    expIdx = question.experienceIndex ?? 0;
-                                    const item = data?.experience?.[expIdx];
+                                    expIdx = expIdx ?? 0;
+                                    const item = data.experience[expIdx];
                                     itemId = item?.id;
                                     originalBullet = item?.bullets?.[bulletIdx];
                                 }
                             }
 
+                            // 5. LAST RESORT: Even if we couldn't find the bullet, trust the LLM section
+                            if (!idResolved && !originalBullet) {
+                                section = llmSection;
+                            }
+
                             if (!originalBullet) {
-                                console.warn("Analysis Question: Could not find original bullet!", {
-                                    q,
-                                    section,
-                                    itemId
-                                });
-                            } else {
-                                console.log("Analysis Question: Found original bullet", {
-                                    originalBullet: originalBullet.substring(0, 20) + "...",
-                                    section,
-                                    method: question.quote ? "Quote" : "ID/Index"
+                                console.warn("❌ Could not find original bullet!", {
+                                    section, itemId, llmSection,
+                                    question: (question.question || '').substring(0, 50)
                                 });
                             }
 
+                            // Generate a unique ID for the question itself
+                            const questionId = `q-${section}-${itemId || 'noid'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
                             return {
                                 ...question,
+                                id: questionId,
                                 section,
                                 experienceIndex: expIdx,
                                 projectIndex: projIdx,
@@ -456,6 +466,7 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                     else if (severityQuestions.warning.length > 0) setCurrentSeverity('warning');
                     else if (severityQuestions.niceToHave.length > 0) setCurrentSeverity('niceToHave');
                     setAnsweredQuestions(new Set());
+                    setVisibleQuestionCount(3); // Reset pagination
 
                     const criticalCount = severityQuestions.critical.length;
                     const warningCount = severityQuestions.warning.length;
@@ -496,24 +507,6 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                         <motion.button
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => handleModeSelect('edit')}
-                            disabled={isRewriting}
-                            className="bg-white dark:bg-zinc-800 p-6 rounded-xl border-2 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-all text-left group shadow-sm"
-                        >
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-zinc-100 dark:bg-zinc-700 rounded-lg group-hover:bg-zinc-200">
-                                    <Paperclip className="h-5 w-5 text-zinc-600 dark:text-zinc-300" />
-                                </div>
-                                <h3 className="font-semibold text-lg">Use Current Content</h3>
-                            </div>
-                            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                Load your resume exactly as is. Best if you just want to fix formatting or headers.
-                            </p>
-                        </motion.button>
-
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
                             onClick={() => handleModeSelect('rewrite')}
                             disabled={isRewriting}
                             className="bg-white dark:bg-zinc-800 p-6 rounded-xl border-2 border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all text-left group relative overflow-hidden shadow-md"
@@ -539,34 +532,6 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
                                 AI will rewrite your bullets to be <strong>punchy, impactful, and professional</strong> using the STAR method.
                             </p>
                         </motion.button>
-
-                        <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => handleModeSelect('rewrite-rag')}
-                            disabled={isRewriting}
-                            className="bg-white dark:bg-zinc-800 p-4 rounded-xl border-2 border-purple-400 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all text-left group relative overflow-hidden shadow"
-                        >
-                            {isRewriting && (
-                                <div className="absolute inset-0 bg-white/80 dark:bg-black/60 flex items-center justify-center z-10 backdrop-blur-sm">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
-                                        <span className="text-sm font-medium text-purple-600">Running Deep Search...</span>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="flex items-center gap-3 mb-1">
-                                <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg text-purple-600 group-hover:bg-purple-200">
-                                    <Lightbulb className="h-4 w-4" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="font-semibold text-purple-700 dark:text-purple-400">RAG-Enhanced Rewrite</h3>
-                                </div>
-                            </div>
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                Uses vector search to find similar high-quality bullets as examples.
-                            </p>
-                        </motion.button>
                     </div>
                 </div>
             </div>
@@ -577,16 +542,8 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
         const userMessage = { id: Date.now().toString(), role: 'user' as const, content: answer };
         setMessages(prev => [...prev, userMessage]);
 
-        const questions = allQuestions[currentSeverity];
-        const idx = questions.findIndex(q =>
-            q.experienceIndex === question.experienceIndex &&
-            q.projectIndex === question.projectIndex &&
-            q.responsibilityIndex === question.responsibilityIndex &&
-            q.bulletIndex === question.bulletIndex &&
-            q.question === question.question
-        );
-        const questionKey = `${question.experienceIndex ?? 'x'}-${question.projectIndex ?? 'x'}-${question.responsibilityIndex ?? 'x'}-${question.bulletIndex ?? 'x'}-${idx}`;
-        setAnsweredQuestions(prev => new Set([...prev, questionKey]));
+        // Track answered question by ID
+        setAnsweredQuestions(prev => new Set([...prev, question.id]));
 
         let originalBullet = question.originalBullet || "N/A";
         let contextHeader = "";
@@ -640,6 +597,7 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                             suggestion.responsibilityIndex = question.responsibilityIndex;
                             suggestion.bulletIndex = question.bulletIndex;
                             suggestion.experienceId = question.experienceId;
+                            suggestion.sourceQuestionId = question.id; // STRICT LINKING
 
                             setPendingSuggestion(suggestion);
                             setMessages(prev => prev.map(m =>
@@ -827,7 +785,7 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                                 return (
                                     <button
                                         key={s}
-                                        onClick={() => setCurrentSeverity(s)}
+                                        onClick={() => { setCurrentSeverity(s); setVisibleQuestionCount(3); }}
                                         className={`
                                         flex-1 py-2 px-3 rounded-md text-xs font-medium transition-all flex items-center justify-center gap-2
                                         ${isActive ? 'bg-white dark:bg-zinc-700 shadow text-zinc-900 dark:text-white' : 'text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-700/50'}
@@ -862,41 +820,53 @@ TASK: Enhance the ORIGINAL BULLET using the user's context. Keep the original ac
                                         <p>No issues found! Great job. 🎉</p>
                                     </div>
                                 ) : (
-                                    analysisQuestions.map((q, idx) => {
-                                        const questionKey = `${q.experienceIndex}-${q.bulletIndex}-${idx}`;
-                                        let contextLabel = "";
-                                        if (q.section === 'project' && resumeData?.projects) {
-                                            const proj = resumeData.projects[q.projectIndex ?? 0];
-                                            if (proj) {
-                                                contextLabel = `${proj.name} • Bullet #${(q.bulletIndex ?? 0) + 1}`;
-                                            }
-                                        } else if (q.section === 'responsibility' && resumeData?.responsibilities) {
-                                            const resp = resumeData.responsibilities[q.responsibilityIndex ?? 0];
-                                            if (resp) {
-                                                contextLabel = `${resp.title || resp.organization} • Description`;
-                                            }
-                                        } else if (resumeData?.experience) {
-                                            const exp = resumeData.experience[q.experienceIndex ?? 0];
-                                            if (exp) {
-                                                const jobTitle = exp.role || exp.company || "Job";
-                                                contextLabel = `${jobTitle} • Bullet #${(q.bulletIndex ?? 0) + 1}`;
-                                            }
-                                        }
+                                    <>
+                                        {analysisQuestions.slice(0, visibleQuestionCount).map((q, idx) => {
+                                            // Use the unique ID generated in addSeverity
+                                            const questionKey = q.id;
 
-                                        return (
-                                            <QuestionCard
-                                                key={questionKey}
-                                                question={q}
-                                                questionNumber={idx + 1}
-                                                onSubmit={handleQuestionAnswer}
-                                                isAnswered={answeredQuestions.has(questionKey)}
-                                                pendingSuggestion={pendingSuggestion}
-                                                onApplySuggestion={handleApplySuggestion}
-                                                onDismissSuggestion={handleDismissSuggestion}
-                                                contextLabel={contextLabel}
-                                            />
-                                        );
-                                    })
+                                            let contextLabel = "";
+                                            if (q.section === 'project' && resumeData?.projects) {
+                                                const proj = resumeData.projects[q.projectIndex ?? 0];
+                                                if (proj) {
+                                                    contextLabel = `${proj.name} • Bullet #${(q.bulletIndex ?? 0) + 1}`;
+                                                }
+                                            } else if (q.section === 'responsibility' && resumeData?.responsibilities) {
+                                                const resp = resumeData.responsibilities[q.responsibilityIndex ?? 0];
+                                                if (resp) {
+                                                    contextLabel = `${resp.title || resp.organization} • Description`;
+                                                }
+                                            } else if (resumeData?.experience) {
+                                                const exp = resumeData.experience[q.experienceIndex ?? 0];
+                                                if (exp) {
+                                                    const jobTitle = exp.role || exp.company || "Job";
+                                                    contextLabel = `${jobTitle} • Bullet #${(q.bulletIndex ?? 0) + 1}`;
+                                                }
+                                            }
+
+                                            return (
+                                                <QuestionCard
+                                                    key={questionKey}
+                                                    question={q}
+                                                    questionNumber={idx + 1}
+                                                    onSubmit={handleQuestionAnswer}
+                                                    isAnswered={answeredQuestions.has(questionKey)}
+                                                    pendingSuggestion={pendingSuggestion}
+                                                    onApplySuggestion={handleApplySuggestion}
+                                                    onDismissSuggestion={handleDismissSuggestion}
+                                                    contextLabel={contextLabel}
+                                                />
+                                            );
+                                        })}
+                                        {visibleQuestionCount < analysisQuestions.length && (
+                                            <button
+                                                onClick={() => setVisibleQuestionCount(prev => prev + 3)}
+                                                className="w-full py-2.5 px-4 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 rounded-lg border border-indigo-200 dark:border-indigo-800 transition-colors"
+                                            >
+                                                Show More ({analysisQuestions.length - visibleQuestionCount} remaining)
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                             </motion.div>
                         </AnimatePresence>

@@ -1,153 +1,156 @@
 ```json
 {
     "profile": {
-        "name": "Aarya Deshpande",
-        "email": "deshaaaru@gmail.com",
-        "phone": "+91-9881204474",
-        "linkedin": "",
-        "github": "",
-        "website": "",
+        "name": "Vrishab Nair",
+        "email": "vrishabnair44@gmail.com",
+        "phone": "+91-9963894342",
+        "linkedin": "https://www.linkedin.com/in/vrishab-nair-212769290/",
+        "github": "https://github.com/Dweeb1578",
+        "website": "https://vrishab-portfolio.vercel.app/",
         "summary": ""
     },
     "experience": [
         {
             "id": "uuid1",
-            "company": "KPMG",
-            "role": "Market Strategy Project",
-            "startDate": "Jul ‘25",
-            "endDate": "Aug ‘25",
-            "location": "",
+            "company": "Pinch Remote",
+            "role": "Founders Office Intern",
+            "startDate": "May 2025",
+            "endDate": "Aug 2025",
+            "location": "Remote",
             "bullets": [
-                "Identified new revenue streams from Global Capability Centres (GCCs) in India",
-                "Studied the setup, run, and sell life cycle of GCCs to identify strategic revenue levers"
+                "Launched \"streaks\" gamification feature by coordinating with engineering and design teams, increasing 7-day user retention by 18%",
+                "Identified product gaps through competitive analysis of 7 networking apps and designed 3 Figma prototypes, leading to roadmap prioritization of 2 high-impact features",
+                "Built investor pitch deck and sourced 34+ VCs, resulting in 2 investor meetings; recruited 2 Marketing Executives through end-to-end hiring process"
+            ]
+        },
+        {
+            "id": "uuid2",
+            "company": "StampMyVisa Remote",
+            "role": "Generalist",
+            "startDate": "May 2025",
+            "endDate": "July 2025",
+            "location": "Remote",
+            "bullets": [
+                "Redesigned website user flow and created UI mockups, reducing user drop-off by streamlining 9-step process to 4 steps",
+                "Produced 3 training videos and onboarding decks for new hires, reducing onboarding time from 2 weeks to 5 days"
+            ]
+        },
+        {
+            "id": "uuid3",
+            "company": "NamNam Foods Remote",
+            "role": "Product Marketing Intern",
+            "startDate": "Jan 2025",
+            "endDate": "March 2025",
+            "location": "Remote",
+            "bullets": [
+                "Designed multi-channel campaign across Instagram, WhatsApp, and email, increasing sales by 47% in 2-month period (Valentine’s Campaign)",
+                "Redesigned packaging and optimized Instagram strategy using analytics, growing reach by 83% and followers by 15%"
             ]
         }
     ],
     "projects": [
         {
-            "id": "uuid2",
-            "name": "Trendy Dice",
-            "description": "Corporate Strategy & Marketing Project",
-            "technologies": [],
-            "link": "",
-            "startDate": "Jun ‘25",
-            "endDate": "Aug ‘25",
-            "bullets": [
-                "Conducted industry, competitor, and customer research in the custom apparel market",
-                "Crafted a data-driven marketing strategy to improve brand positioning and sales conversion"
-            ]
-        },
-        {
-            "id": "uuid3",
-            "name": "Enuncify",
-            "description": "Pre-Launch GTM & Management Consulting Project",
-            "technologies": [],
-            "link": "",
-            "startDate": "Sep ‘25",
-            "endDate": "Nov ‘25",
-            "bullets": [
-                "Developed go-to-market (GTM) strategy, identifying target user segments and acquisition channels",
-                "Performed beta testing and pilot marketing, incorporating user feedback into product positioning"
-            ]
-        },
-        {
             "id": "uuid4",
-            "name": "Alumni Engagement & Fundraising Strategy",
-            "description": "Project for SARC, BITS Hyderabad",
-            "technologies": [],
+            "name": "Fine-tuned PM Mentor/Interviewer",
+            "description": "Product Management Interview Preparation Tool",
+            "technologies": ["Llama 7B", "Unsloth", "ChromaDB"],
             "link": "",
-            "startDate": "Aug ‘25",
-            "endDate": "Nov ‘25",
+            "github": "",
+            "startDate": "November 2025",
+            "endDate": "",
             "bullets": [
-                "Designed strategic initiatives to strengthen alumni engagement and fundraising efforts",
-                "Proposed implementation frameworks for alumni outreach and donor relationship management"
+                "Built fine-tuned Llama 7B model with RAG pipeline using Unsloth and ChromaDB for FAANG PM interview preparation",
+                "Integrated dataset of 3000+ FAANG PM questions to provide context-aware mentorship and interview simulations"
             ]
         },
         {
             "id": "uuid5",
-            "name": "Extreme Combinatorics",
-            "description": "Undergraduate Study Project",
-            "technologies": [],
-            "link": "",
-            "startDate": "",
+            "name": "Shywarma Enterprise Grade Chatbot",
+            "description": "Customer Support & Booking Bot for Hospitality",
+            "technologies": ["Redis", "RAG", "Pinecone", "Supabase"],
+            "link": "https://shywarma-chain-of-hotels.vercel.app/",
+            "github": "",
+            "startDate": "January 2026",
             "endDate": "",
             "bullets": [
-                "Academic research in extreme combinatorics under a faculty mentor"
+                "Engineered custom multi-layer caching system using Redis, reducing repeat query response times by 90% and lowering LLM token costs",
+                "Developed high-context RAG pipeline that retrieves hotel/travel data and dynamically adjusts pricing via business logic layers",
+                "Built rate-limiting middleware and content filtering systems to ensure brand safety and prevent API abuse/injection attacks"
+            ]
+        },
+        {
+            "id": "uuid6",
+            "name": "VC Outreach Automation",
+            "description": "B2B Research & Personalization Engine",
+            "technologies": ["n8n", "Serper.dev", "Groq"],
+            "link": "",
+            "github": "",
+            "startDate": "December 2025",
+            "endDate": "",
+            "bullets": [
+                "Architected n8n workflow to automate lead research on VCs, reducing manual research time by 90%",
+                "Implemented personalized hook generation using Groq LLMs to draft context-rich outreach emails for Seed to Series A founders"
             ]
         }
     ],
     "education": [
         {
-            "id": "uuid6",
-            "school": "Birla Institute of Technology and Science, Pilani – Hyderabad Campus",
-            "degree": "Dual Degree: B.E. Computer Science & M.Sc. Mathematics",
-            "field": "",
-            "startDate": "2024",
-            "endDate": "2029",
-            "grade": "CGPA: 8.27/10.00"
+            "id": "uuid7",
+            "school": "BITS Pilani Hyderabad Campus",
+            "degree": "Masters",
+            "field": "Physics",
+            "startDate": "Aug 2023",
+            "endDate": "Present",
+            "grade": ""
+        },
+        {
+            "id": "uuid8",
+            "school": "BITS Pilani Hyderabad Campus",
+            "degree": "Bachelors",
+            "field": "Electronics and Electrical Engineering",
+            "startDate": "Aug 2023",
+            "endDate": "Present",
+            "grade": ""
         }
     ],
     "responsibilities": [
         {
-            "id": "uuid7",
-            "title": "Event Management Head",
-            "organization": "Verba Maximus",
-            "location": "",
-            "startDate": "",
-            "endDate": "",
-            "description": "Leading planning and execution of 10+ events as a Fest Organizing Body (FOB) member, managing logistics, scheduling, and stakeholder communication"
-        },
-        {
-            "id": "uuid8",
-            "title": "Events & Strategy Head",
-            "organization": "English Language Activities Society",
-            "location": "",
-            "startDate": "",
-            "endDate": "",
-            "description": ""
-        },
-        {
             "id": "uuid9",
-            "title": "Communications & Guest Relations",
-            "organization": "BITS Embryo",
+            "title": "President",
+            "organization": "180 Degrees Consulting, BITS Hyderabad",
             "location": "",
-            "startDate": "",
-            "endDate": "",
-            "description": ""
+            "startDate": "Aug 2025",
+            "endDate": "Present",
+            "description": "",
+            "bullets": [
+                "Managing team of 25+ consultants to deliver pro-bono consulting to 8+ non-profits, executing market research, GTM strategies, and pricing analysis",
+                "Launched 'Consulting 101' training program covering Automations and Lead Generation, up-skilling 130+ students across campus"
+            ]
         },
         {
             "id": "uuid10",
-            "title": "Research & Technical Team",
-            "organization": "Ad Astra (Astronomy & Science Club)",
+            "title": "Student's Anonymous Lead",
+            "organization": "National Service Scheme, BITS Hyderabad",
             "location": "",
-            "startDate": "",
-            "endDate": "",
-            "description": ""
-        },
-        {
-            "id": "uuid11",
-            "title": "Actor",
-            "organization": "Dramatics Club",
-            "location": "",
-            "startDate": "",
-            "endDate": "",
-            "description": ""
+            "startDate": "Aug 2025",
+            "endDate": "Present",
+            "description": "",
+            "bullets": [
+                "Leading 22-member peer support team providing confidential counseling for students facing loneliness, harassment, addiction, and depression",
+                "Organized 6 mental health awareness events reaching 300+ students and establishing campus-wide support network"
+            ]
         }
     ],
-    "achievements": [
-        "Silver Medalist, Singapore & Asian Schools Math Olympiad (SASMO)",
-        "Class X (CBSE): 97.6%",
-        "Class XII (CBSE): 87.6%"
-    ],
+    "achievements": [],
     "skills": [
-        "C",
         "Python",
-        "Git",
-        "GitHub",
-        "Visual Studio Code",
-        "Jupyter Notebook",
-        "Google Colab",
-        "MS Excel (Basic)"
+        "n8n",
+        "Redis",
+        "RAG Pipelines",
+        "Vector Databases (Pinecone, ChromaDB)",
+        "Figma",
+        "Cohere",
+        "Supabase"
     ],
     "softSkills": []
 }

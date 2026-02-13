@@ -27,6 +27,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             });
 
             pythonProcess.on('close', (code) => {
+                // ALWAYS LOG STDERR for debugging
+                if (errorString) {
+                    console.log("Analyzer Python Stderr:", errorString);
+                }
+
                 if (code !== 0) {
                     console.error('Analyzer script failed:', errorString);
                     resolve(NextResponse.json(
