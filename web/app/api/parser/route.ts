@@ -201,12 +201,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         let text: string;
         try {
             const bytes = await file.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const pdfParseModule = await import("pdf-parse") as any;
-            const pdfParse = pdfParseModule.default || pdfParseModule;
-            const pdfData = await pdfParse(buffer);
-            text = pdfData.text || "";
+            const uint8 = new Uint8Array(bytes);
+
+            // Use pdfjs-dist directly (pdf-parse v2 doesn't have the simple API)
+            const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+            const loadingTask = pdfjsLib.getDocument({ data: uint8 });
+            const pdfDoc = await loadingTask.promise;
+
+            const textParts: string[] = [];
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                const page = await pdfDoc.getPage(i);
+                const content = await page.getTextContent();
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const pageText = content.items.map((item: any) => item.str).join(" ");
+                textParts.push(pageText);
+            }
+            text = textParts.join("\n");
         } catch (pdfErr: unknown) {
             console.error("PDF extraction failed:", pdfErr);
             return NextResponse.json(
