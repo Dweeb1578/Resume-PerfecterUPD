@@ -234,9 +234,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 throw new Error("pdfjs-dist getDocument not found. Keys: " + Object.keys(pdfjsLib).join(", "));
             }
 
-            // Disable worker for serverless
+            // Point worker to the actual worker module (pdfjs-dist uses this as an import path)
             if (pdfjsLib.GlobalWorkerOptions) {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = "disabled";
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "pdfjs-dist/legacy/build/pdf.worker.mjs";
             }
 
             const loadingTask = getDoc({
