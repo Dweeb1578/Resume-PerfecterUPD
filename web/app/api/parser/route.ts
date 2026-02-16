@@ -226,21 +226,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 g.Path2D = class Path2D { };
             }
 
-            // Use pdfjs-dist directly for serverless compatibility
+            // Use pdfjs-dist legacy build (designed for Node.js, no web worker needed)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const pdfjsLib = await import("pdfjs-dist") as any;
-
-            // Disable worker for serverless environment
-            if (pdfjsLib.GlobalWorkerOptions) {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = "";
-            }
-
+            const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs") as any;
             const getDoc = pdfjsLib.getDocument || pdfjsLib.default?.getDocument;
             if (!getDoc) {
                 throw new Error("pdfjs-dist getDocument not found. Keys: " + Object.keys(pdfjsLib).join(", "));
             }
 
-            const loadingTask = getDoc({ data: uint8, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true });
+            // Disable worker for serverless
+            if (pdfjsLib.GlobalWorkerOptions) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "disabled";
+            }
+
+            const loadingTask = getDoc({
+                data: uint8,
+                useWorkerFetch: false,
+                isEvalSupported: false,
+                useSystemFonts: true,
+                disableAutoFetch: true,
+                disableStream: true,
+            });
             const pdfDoc = await loadingTask.promise;
 
             const textParts: string[] = [];
