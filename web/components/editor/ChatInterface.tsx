@@ -199,7 +199,7 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
 
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error || errorData.details || "Upload failed");
+                throw new Error(errorData.error ? `${errorData.error}${errorData.details ? ': ' + errorData.details : ''}` : "Upload failed");
             }
 
             const data = await res.json();

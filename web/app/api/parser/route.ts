@@ -203,9 +203,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             const bytes = await file.arrayBuffer();
             const uint8 = new Uint8Array(bytes);
 
-            // Use pdfjs-dist directly (pdf-parse v2 doesn't have the simple API)
-            const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-            const loadingTask = pdfjsLib.getDocument({ data: uint8 });
+            // Use pdfjs-dist directly for serverless compatibility
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const pdfjsLib = await import("pdfjs-dist") as any;
+
+            // Disable worker for serverless environment
+            if (pdfjsLib.GlobalWorkerOptions) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+            }
+
+            const getDoc = pdfjsLib.getDocument || pdfjsLib.default?.getDocument;
+            if (!getDoc) {
+                throw new Error("pdfjs-dist getDocument not found. Keys: " + Object.keys(pdfjsLib).join(", "));
+            }
+
+            const loadingTask = getDoc({ data: uint8, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true });
             const pdfDoc = await loadingTask.promise;
 
             const textParts: string[] = [];
