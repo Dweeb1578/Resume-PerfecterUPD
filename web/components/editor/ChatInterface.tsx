@@ -198,8 +198,15 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
             });
 
             if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.error ? `${errorData.error}${errorData.details ? ': ' + errorData.details : ''}` : "Upload failed");
+                let errorMsg = "Upload failed";
+                try {
+                    const errorData = await res.json();
+                    errorMsg = errorData.error ? `${errorData.error}${errorData.details ? ': ' + errorData.details : ''}` : "Upload failed";
+                } catch {
+                    // Non-JSON response (likely 500/504 HTML from Vercel)
+                    errorMsg = `Upload failed (${res.status} ${res.statusText})`;
+                }
+                throw new Error(errorMsg);
             }
 
             const data = await res.json();

@@ -203,7 +203,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             const bytes = await file.arrayBuffer();
             const uint8 = new Uint8Array(bytes);
             const { extractText } = await import("unpdf");
-            const result = await extractText(uint8);
+
+            // Race extraction against a timeout to prevent Vercel function hangs
+            const extractionPromise = extractText(uint8);
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("PDF extraction timed out after 10s")), 10000)
+            );
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result = await Promise.race([extractionPromise, timeoutPromise]) as any;
             text = (result.text || []).join("\n");
         } catch (pdfErr: unknown) {
             console.error("PDF extraction failed:", pdfErr);
