@@ -1,18 +1,195 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, unlink, readFile } from "fs/promises";
-import { join } from "path";
-import { spawn } from "child_process";
+import { getGroqClient, cleanLLMJson } from "@/lib/groq";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require("pdf-parse");
 
+export const runtime = "nodejs";
 
+const SYSTEM_PROMPT = `
+You are an expert Resume Parser. 
+Extract the resume data from the text provided below into the following strict JSON format:
+{
+    "profile": { "name": "", "email": "", "phone": "", "linkedin": "", "github": "", "website": "", "summary": "" },
+    "experience": [ { "id": "uuid", "company": "", "role": "", "startDate": "", "endDate": "", "location": "", "bullets": [] } ],
+    "projects": [ { "id": "uuid", "name": "", "description": "", "technologies": [], "link": "", "bullets": [] } ],
+    "education": [ { "id": "uuid", "school": "", "degree": "", "field": "", "startDate": "", "endDate": "", "grade": "" } ],
+    "responsibilities": [ { "id": "uuid", "title": "", "organization": "", "location": "", "startDate": "", "endDate": "", "description": "", "bullets": ["Action/Result 1", "Action/Result 2"] } ],
+    "achievements": [ "Achievement 1 with details", "Achievement 2 with details" ],
+    "skills": [],
+    "softSkills": []
+}
 
-// Force Rebuild
-export const runtime = "nodejs"; // Required for fs/processes
+SECTION HEADER MAPPINGS - Map these variations to our fields:
+
+EXPERIENCE (put in "experience"):
+- "Work Experience", "Professional Experience", "Employment History", "Career History"
+- "Work History", "Professional Background", "Experience", "Internships"
+- "Relevant Experience", "Industry Experience"
+
+EDUCATION (put in "education"):
+- "Education", "Academic Background", "Educational Qualifications", "Academic History"
+- "Degrees", "Schooling", "Academic Credentials"
+
+PROJECTS (put in "projects"):
+- "Projects", "Personal Projects", "Academic Projects", "Key Projects"
+- "Technical Projects", "Portfolio", "Side Projects"
+
+SKILLS (put in "skills"):
+- "Skills", "Technical Skills", "Core Competencies", "Key Skills"
+- "Expertise", "Proficiencies", "Technologies", "Tools & Technologies"
+
+ACHIEVEMENTS (put in "achievements"):
+- "Achievements", "Certifications", "Awards", "Honors"
+- "Accomplishments", "Courses", "Licenses", "Publications"
+- "Achievements & Certifications", "Awards & Honors"
+
+RESPONSIBILITIES (put in "responsibilities"):
+- "Positions of Responsibility", "Leadership", "Extracurriculars"
+- "Volunteer Work", "Community Involvement", "Activities"
+- "Leadership Experience", "Organizational Roles"
+
+SOFT SKILLS (put in "softSkills"):
+- "Soft Skills", "Interpersonal Skills", "Professional Attributes"
+- "Languages" (if spoken languages), "Communication"
+
+You are an expert Resume Parser. 
+Your goal is to extract structured data from the resume text provided below with 100% precision.
+
+STRICT JSON OUTPUT FORMAT:
+{
+    "profile": { 
+        "name": "Full Name", 
+        "email": "email@example.com", 
+        "phone": "+1-555-0100", 
+        "linkedin": "linkedin.com/in/...", 
+        "github": "github.com/...", 
+        "website": "portfolio.com", 
+        "summary": "Brief professional summary if present" 
+    },
+    "experience": [ 
+        { 
+            "id": "uuid", 
+            "company": "Company Name", 
+            "role": "Job Title", 
+            "startDate": "MM/YYYY or YYYY", 
+            "endDate": "MM/YYYY, YYYY or Present", 
+            "location": "City, Country", 
+            "bullets": ["Action verb + context + result", "Another bullet"] 
+        } 
+    ],
+    "projects": [ 
+        { 
+            "id": "uuid", 
+            "name": "Project Name", 
+            "description": "Brief description", 
+            "technologies": ["React", "Python"], 
+            "link": "github/demo link", 
+            "github": "github.com/...",
+            "startDate": "MM/YYYY or YYYY",
+            "endDate": "MM/YYYY, YYYY or Present",
+            "bullets": ["Key contribution 1", "Key contribution 2"] 
+        } 
+    ],
+    "education": [ 
+        { 
+            "id": "uuid", 
+            "school": "University Name", 
+            "degree": "Masters / Bachelors / B.Tech / M.S. etc (degree type only, NOT the field)", 
+            "field": "Computer Science / Physics / Electronics etc (the major/specialization)", 
+            "startDate": "Year", 
+            "endDate": "Year", 
+            "grade": "GPA/Grade" 
+        } 
+    ],
+    "responsibilities": [ 
+        { 
+            "id": "uuid", 
+            "title": "Role Title", 
+            "organization": "Organization Name", 
+            "location": "", 
+            "startDate": "", 
+            "endDate": "", 
+            "description": "Brief description of duties",
+            "bullets": ["Action/Result 1", "Action/Result 2"]
+        } 
+    ],
+    "achievements": [ 
+        "Winner of X Hackathon (2023)", 
+        "AWS Certified Solutions Architect" 
+    ],
+    "skills": ["Python", "React"], 
+    "softSkills": ["Leadership", "Communication", "Problem Solving"]
+}
+
+CRITICAL RULES - DO NOT IGNORE:
+1. **NO HALLUCINATIONS**: If a field is not explicitly present in the text, return an empty string "" or empty list []. Do NOT invent dates, emails, or locations.
+2. **ROLE vs COMPANY**: 
+   - 'role' is the Job Title (e.g., "Software Engineer", "Product Manager").
+   - 'company' is the Organization/Employer (e.g., "Google", "Startup Inc").
+   - Do not swap these.
+3. **DATES**: 
+   - Keep original format. If "Present" or "Current" is used, keep it as "Present".
+   - If dates are missing or just show "–" with no actual dates, use empty strings "" for startDate and endDate.
+   - Do NOT put "–" as a date value.
+4. **SKILLS vs SOFT SKILLS**: 
+   - **skills**: Technical hard skills ONLY (e.g. Python, SQL, Photoshop, AWS, Spanish).
+   - **softSkills**: Interpersonal or abstract skills (e.g. Leadership, Teamwork, Communication, Adaptability).
+5. **BULLETS**: 
+   - Split long paragraphs into individual executable bullet points.
+   - If a section has no bullets but has a paragraph, split the paragraph into logical sentences/bullets.
+
+6. **EXPERIENCE vs RESPONSIBILITIES - VERY IMPORTANT**:
+   - **experience**: ONLY for paid work, internships, or professional employment at companies/organizations.
+     Examples: "Software Engineer at Google", "Marketing Intern at Startup", "KPMG", "SARC"
+   - **responsibilities**: For unpaid leadership roles, club positions, student organizations, volunteer work.
+     Examples: "Event Management Head at Verba Maximus", "Actor at Dramatics Club", "Member of Astronomy Club"
+   - If a section is titled "Professional Experience" but contains club/volunteer roles, put them in **responsibilities** NOT experience.
+   - If the organization is a college club, fest, society, or student body → it goes in **responsibilities**.
+
+7. **DEDUPLICATION**:
+   - If the same role+organization appears in multiple sections of the resume, extract it ONCE only.
+   - Prefer the version with more details (bullets, dates) if duplicates exist.
+   - Do NOT create duplicate entries in the output JSON.
+
+8. **ORGANIZATION EXTRACTION**:
+   - For club roles, the format is often "Role Title – Organization Name" (separated by dash).
+   - Extract "Event Management Head" as title, "Verba Maximus" as organization.
+   - Do not leave organization empty if it appears after the dash.
+
+SECTION MAPPING GUIDE:
+- "Work Experience", "Professional Experience", "History", "Employment" -> **experience** (but filter for actual jobs only)
+- "Projects", "Technical Projects", "Side Projects" -> **projects**
+- "Education", "Academic Background", "Scholastic Achievements" -> **education**
+- "Leadership", "Positions of Responsibility", "Volunteering", "Extracurriculars" -> **responsibilities**
+- "Skills", "Technical Skills", "Stack" -> **skills**
+- "Achievements", "Awards", "Certifications", "Honors" -> **achievements**
+
+9. **EDUCATION PARSING**:
+   - **degree**: ONLY the degree type (e.g., "Masters in Physics", "B.Tech", "Bachelors", "B.E.").
+   - **field**: The major/specialization/branch SEPARATE from degree (e.g., "Electronics and Electrical Engineering", "Computer Science").
+   - If the resume says "B.Tech in Computer Science", degree = "B.Tech", field = "Computer Science".
+   - If someone has dual degrees like "M.Sc. Physics + B.E. Electronics", put the primary or first one's type in degree, and use field for the specialization.
+   - If field is not explicitly stated or is already fully contained in the degree string, use empty string "" for field.
+   - **NEVER** put the literal word "Major" as the field value. Extract the actual major name or leave empty.
+
+URL DETECTION RULES (profile section):
+6. **linkedin**: Look for URLs containing "linkedin.com/in/" - extract the full profile URL.
+7. **github**: Look for URLs containing "github.com/" - extract the full profile URL (not repo links).
+8. **website**: Look for personal portfolio URLs, personal websites, or any other relevant links (not LinkedIn/GitHub).
+   - Common patterns: behance.net, dribbble.com, portfolio sites, personal domains with names.
+9. If a URL is displayed as anchor text only (e.g., just "LinkedIn" or "GitHub"), still extract if possible or note only.
+10. URLs may appear in the header/contact section or scattered in the resume text.
+11. PDFs often lose hyperlinks during text extraction. Look for text patterns like "github.com/username" even without "https://" prefix.
+
+OUTPUT INSTRUCTIONS:
+- Return ONLY valid JSON.
+- Do not include markdown formatting (like \`\`\`json ... \`\`\`).
+- Do not include any conversational text.
+`;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-    let tempFilePath = "";
-
     try {
-        console.log("----- PARSER API (PYTHON BRIDGE) START -----");
+        console.log("----- PARSER API (TypeScript) START -----");
 
         const formData = await req.formData();
         const file = formData.get("file") as File;
@@ -21,107 +198,94 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             return NextResponse.json({ error: "No file provided" }, { status: 400 });
         }
 
-        // 1. Save File Temporarily
+        // 1. Extract text from PDF using pdf-parse
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
-        // Ensure tmp directory exists
+        const pdfData = await pdfParse(buffer);
+        let text: string = pdfData.text || "";
 
-        // We'll trust os.tmpdir or create a local tmp
-        // Simplest: just save to root or a known temp
-        tempFilePath = join(process.cwd(), `temp_${Date.now()}.pdf`);
-
-        await writeFile(tempFilePath, buffer);
-        console.log("Saved temp file:", tempFilePath);
-
-        // 2. Spawn Python Script
-        // Script is at ../parser.py relative to web/
-        const scriptPath = join(process.cwd(), "..", "parser.py");
-        console.log("Calling script at:", scriptPath);
-
-        // Create a temp output path
-        const tempOutputPath = join(process.cwd(), `temp_out_${Date.now()}.json`);
-
-        return new Promise<NextResponse>((resolve) => {
-            // Pass tempOutputPath as 2nd argument
-            const pythonProcess = spawn("python", [scriptPath, tempFilePath, tempOutputPath]);
-
-            let errorData = "";
-
-            pythonProcess.stderr.on("data", (data) => {
-                errorData += data.toString();
-            });
-
-            pythonProcess.on("close", async (code) => {
-                // Cleanup input temp file
-                try { await unlink(tempFilePath); } catch { }
-
-                if (code !== 0) {
-                    console.error("Python Script Error:", errorData);
-                    // Try to unlink output file just in case
-                    try { await unlink(tempOutputPath); } catch { }
-                    resolve(NextResponse.json({ error: "Parser script failed", details: errorData }, { status: 500 }));
-                    return;
-                }
-
-                try {
-                    // Read output from file
-                    const outputData = await readFile(tempOutputPath, 'utf-8');
-                    // Cleanup output file
-                    await unlink(tempOutputPath);
-
-                    console.log("Python Output Length:", outputData.length);
-                    const json = JSON.parse(outputData);
-
-                    if (json.error) {
-                        resolve(NextResponse.json({ error: json.error }, { status: 400 }));
-                        return;
-                    }
-
-                    // Post-process IDs
-                    const addId = (item: Record<string, unknown>) => ({ ...item, id: item.id || Math.random().toString(36).substr(2, 9) });
-                    if (json.experience) json.experience = json.experience.map(addId);
-                    if (json.projects) json.projects = json.projects.map(addId);
-                    if (json.education) json.education = json.education.map(addId);
-                    if (json.responsibilities) json.responsibilities = json.responsibilities.map(addId);
-
-                    // Post-process: strip trailing "Remote" from company names
-                    if (json.experience) {
-                        json.experience = json.experience.map((exp: Record<string, unknown>) => {
-                            const company = (exp.company as string) || '';
-                            if (company.match(/\s+Remote$/i)) {
-                                return {
-                                    ...exp,
-                                    company: company.replace(/\s+Remote$/i, '').trim(),
-                                    location: (exp.location as string) || 'Remote'
-                                };
-                            }
-                            return exp;
-                        });
-                    }
-
-                    resolve(NextResponse.json(json));
-
-                } catch (e: unknown) {
-                    console.error("JSON Parse/Read Error:", e);
-                    // Try cleanup if read failed
-                    try { await unlink(tempOutputPath); } catch { }
-
-                    resolve(NextResponse.json({ error: "Invalid response from parser", details: (e as Error).message }, { status: 500 }));
-                }
-            });
-        });
-
-    } catch (error: unknown) {
-        // Cleanup if error occurs before promise
-        if (tempFilePath) {
-            try { await unlink(tempFilePath); } catch { }
+        if (!text.trim()) {
+            return NextResponse.json({ error: "No text extracted from PDF" }, { status: 400 });
         }
 
+        console.log("Extracted text length:", text.length);
+
+        // 2. Call Groq LLM to parse the resume
+        const client = getGroqClient();
+
+        const completion = await client.chat.completions.create({
+            messages: [
+                { role: "system", content: SYSTEM_PROMPT },
+                { role: "user", content: `Resume Text:\n${text}` },
+            ],
+            model: "llama-3.3-70b-versatile",
+            temperature: 0,
+            stream: false,
+        });
+
+        const rawResult = completion.choices[0]?.message?.content;
+        if (!rawResult) {
+            return NextResponse.json({ error: "No response from LLM" }, { status: 500 });
+        }
+
+        // 3. Clean and parse JSON
+        const cleanedJson = cleanLLMJson(rawResult);
+        const json = JSON.parse(cleanedJson);
+
+        if (json.error) {
+            return NextResponse.json({ error: json.error }, { status: 400 });
+        }
+
+        // 4. Post-process: Add unique IDs
+        const addId = (item: Record<string, unknown>) => ({
+            ...item,
+            id: (item.id && item.id !== "uuid" && item.id !== "") ? item.id : Math.random().toString(36).substr(2, 9),
+        });
+        if (json.experience) json.experience = json.experience.map(addId);
+        if (json.projects) json.projects = json.projects.map(addId);
+        if (json.education) json.education = json.education.map(addId);
+        if (json.responsibilities) json.responsibilities = json.responsibilities.map(addId);
+
+        // 5. Post-process: Strip trailing "Remote" from company names
+        if (json.experience) {
+            json.experience = json.experience.map((exp: Record<string, unknown>) => {
+                const company = (exp.company as string) || "";
+                if (company.match(/\s+Remote$/i)) {
+                    return {
+                        ...exp,
+                        company: company.replace(/\s+Remote$/i, "").trim(),
+                        location: (exp.location as string) || "Remote",
+                    };
+                }
+                return exp;
+            });
+        }
+
+        // 6. Post-process: Regex fallback for URLs
+        if (!json.profile?.linkedin) {
+            const linkedinMatch = text.match(/(https?:\/\/)?(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/);
+            if (linkedinMatch) {
+                if (!json.profile) json.profile = {};
+                json.profile.linkedin = linkedinMatch[0];
+            }
+        }
+        if (!json.profile?.github) {
+            const githubMatch = text.match(/(https?:\/\/)?(www\.)?github\.com\/[a-zA-Z0-9_-]+/);
+            if (githubMatch) {
+                if (!json.profile) json.profile = {};
+                json.profile.github = githubMatch[0];
+            }
+        }
+
+        console.log("----- PARSER API SUCCESS -----");
+        return NextResponse.json(json);
+
+    } catch (error: unknown) {
         console.error("----- PARSER API ERROR -----", error);
-        return NextResponse.json({
-            error: "Failed to parse resume",
-            details: (error as Error).message
-        }, { status: 500 });
+        return NextResponse.json(
+            { error: "Failed to parse resume", details: (error as Error).message },
+            { status: 500 }
+        );
     }
 }

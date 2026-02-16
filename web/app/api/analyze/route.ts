@@ -1,67 +1,113 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { spawn } from 'child_process';
-import path from 'path';
+import { NextRequest, NextResponse } from "next/server";
+import { getGroqClient, cleanLLMJson } from "@/lib/groq";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
-        const body = await req.json();
+        const parsedData = await req.json();
 
-        // Locate python script
-        const scriptPath = path.join(process.cwd(), '..', 'analyzer.py');
+        console.log("DEBUG_ANALYZER: Experience Count:", (parsedData.experience || []).length);
+        console.log("DEBUG_ANALYZER: Projects Count:", (parsedData.projects || []).length);
+        console.log("DEBUG_ANALYZER: Responsibilities Count:", (parsedData.responsibilities || []).length);
 
-        // serialize the full resume JSON to pass as arg
-        const resumeJsonStr = JSON.stringify(body);
+        const client = getGroqClient();
 
-        return new Promise<NextResponse>((resolve) => {
-            const pythonProcess = spawn('python', [scriptPath, resumeJsonStr]);
+        // Sections to analyze
+        const sectionsToAnalyze: [string, unknown[]][] = [
+            ["experience", parsedData.experience || []],
+            ["project", parsedData.projects || []],
+            ["responsibility", parsedData.responsibilities || []],
+        ];
 
-            let dataString = '';
-            let errorString = '';
+        const finalOutput: {
+            intro: string;
+            critical: unknown[];
+            warning: unknown[];
+            niceToHave: unknown[];
+        } = {
+            intro: "",
+            critical: [],
+            warning: [],
+            niceToHave: [],
+        };
 
-            pythonProcess.stdout.on('data', (data) => {
-                dataString += data.toString();
+        // Analyze each section
+        for (const [sectionName, items] of sectionsToAnalyze) {
+            if (!items || (items as unknown[]).length === 0) continue;
+
+            console.log(`DEBUG_ANALYZER: Analyzing section: ${sectionName} (${(items as unknown[]).length} items)`);
+
+            const prompt = `
+            You are an expert Resume Critic.
+            Analyze ONLY the following \`${sectionName}\` items from a resume.
+            
+            ITEMS TO ANALYZE:
+            ${JSON.stringify(items, null, 2)}
+
+            OUTPUT FORMAT (Strict JSON):
+            {
+                "critical": [ {"section": "${sectionName}", "id": "uuid", "quote": "text", "bulletIndex": 0, "question": "...", "issue": "..."} ],
+                "warning": [ {"section": "${sectionName}", "id": "uuid", "quote": "text", "bulletIndex": 0, "question": "...", "issue": "..."} ],
+                "niceToHave": [ {"section": "${sectionName}", "id": "uuid", "quote": "text", "bulletIndex": 0, "question": "...", "issue": "..."} ]
+            }
+
+            CATEGORIES:
+            - **Critical**: Missing metrics, vague claims, grammar errors, weak impact.
+            - **Warning**: Passive voice, generic phrases ("Responsible for"), lack of context.
+            - **NiceToHave**: Suggestions to make it perfect (stronger verbs, better formatting).
+
+            RULES:
+            1. Analyze EVERY item in the list.
+            2. Return "id", "quote", "bulletIndex" exactly as in input.
+            3. "section" must be "${sectionName}".
+            4. Provide a mix of Critical, Warning, and NiceToHave. Do not mark everything as Critical.
+            `;
+
+            try {
+                const msg = await client.chat.completions.create({
+                    messages: [
+                        { role: "system", content: prompt },
+                        { role: "user", content: "Analyze these items." },
+                    ],
+                    model: "llama-3.3-70b-versatile",
+                    temperature: 0.1,
+                    stream: false,
+                });
+
+                const rawText = msg.choices[0]?.message?.content || "";
+                const cleaned = cleanLLMJson(rawText);
+                const result = JSON.parse(cleaned);
+
+                finalOutput.critical.push(...(result.critical || []));
+                finalOutput.warning.push(...(result.warning || []));
+                finalOutput.niceToHave.push(...(result.niceToHave || []));
+            } catch (e) {
+                console.error(`DEBUG_ANALYZER: Failed to analyze ${sectionName}:`, e);
+            }
+        }
+
+        // Generate intro
+        try {
+            const introPrompt = `
+            Based on this resume profile, write a 1-sentence summary of its strength.
+            Profile: ${JSON.stringify(parsedData.profile || {})}
+            Experience Titles: ${JSON.stringify((parsedData.experience || []).map((e: Record<string, unknown>) => e.role))}
+            `;
+            const introMsg = await client.chat.completions.create({
+                messages: [{ role: "user", content: introPrompt }],
+                model: "llama-3.3-70b-versatile",
+                temperature: 0.3,
             });
+            finalOutput.intro = introMsg.choices[0]?.message?.content?.trim() || "Here is the analysis of your resume.";
+        } catch {
+            finalOutput.intro = "Here is the analysis of your resume.";
+        }
 
-            pythonProcess.stderr.on('data', (data) => {
-                errorString += data.toString();
-            });
-
-            pythonProcess.on('close', (code) => {
-                // ALWAYS LOG STDERR for debugging
-                if (errorString) {
-                    console.log("Analyzer Python Stderr:", errorString);
-                }
-
-                if (code !== 0) {
-                    console.error('Analyzer script failed:', errorString);
-                    resolve(NextResponse.json(
-                        { error: 'Analysis failed', details: errorString },
-                        { status: 500 }
-                    ));
-                    return;
-                }
-
-                try {
-                    const result = JSON.parse(dataString);
-                    if (result.error) {
-                        resolve(NextResponse.json({ error: result.error }, { status: 500 }));
-                    } else {
-                        resolve(NextResponse.json(result, { status: 200 }));
-                    }
-                } catch {
-                    console.error('Failed to parse Python output:', dataString);
-                    resolve(NextResponse.json(
-                        { error: 'Invalid response from analyzer', raw: dataString },
-                        { status: 500 }
-                    ));
-                }
-            });
-        });
+        return NextResponse.json(finalOutput, { status: 200 });
 
     } catch (error) {
-        console.error('API Error:', error);
+        console.error("Analyzer API Error:", error);
         return NextResponse.json(
-            { error: 'Internal Server Error' },
+            { error: "Analysis failed", details: (error as Error).message },
             { status: 500 }
         );
     }

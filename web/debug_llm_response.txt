@@ -1,157 +1,156 @@
 ```json
 {
     "profile": {
-        "name": "Vrishab Nair",
-        "email": "vrishabnair44@gmail.com",
-        "phone": "+91-9963894342",
-        "linkedin": "https://www.linkedin.com/in/vrishab-nair-212769290/",
-        "github": "https://github.com/Dweeb1578",
-        "website": "https://vrishab-portfolio.vercel.app/",
+        "name": "Dev Ansh Singh Sengar",
+        "email": "sengardevanshsingh9202@gmail.com",
+        "phone": "(+91) 8429392098",
+        "linkedin": "https://www.linkedin.com/in/devansh-singh-sengar-502a16338",
+        "github": "",
+        "website": "",
         "summary": ""
     },
     "experience": [
         {
             "id": "uuid1",
-            "company": "Pinch Remote",
-            "role": "Founders Office Intern",
-            "startDate": "May 2025",
+            "company": "Trendydice Apparels Pvt. Ltd.",
+            "role": "Strategic Consulting Intern",
+            "startDate": "Jun 2025",
             "endDate": "Aug 2025",
-            "location": "Remote",
+            "location": "",
             "bullets": [
-                "Launched \"streaks\" gamification feature by coordinating with engineering and design teams, increasing 7-day user retention by 18%",
-                "Identified product gaps through competitive analysis of 7 networking apps and designed 3 Figma prototypes, leading to roadmap prioritization of 2 high-impact features",
-                "Built investor pitch deck and sourced 34+ VCs, resulting in 2 investor meetings; recruited 2 Marketing Executives through end-to-end hiring process"
+                "Conducted industry benchmarking, customer persona design, and operational mapping.",
+                "Designed creative marketing campaigns and brand voice guidelines for B2B outreach.",
+                "Created KPI metrics, performance dashboards, and collaborated on influencer marketing strategy."
             ]
         },
         {
             "id": "uuid2",
-            "company": "StampMyVisa Remote",
-            "role": "Generalist",
-            "startDate": "May 2025",
-            "endDate": "July 2025",
-            "location": "Remote",
+            "company": "Enuncify",
+            "role": "Strategic Consulting Intern",
+            "startDate": "Sep 2025",
+            "endDate": "Nov 2025",
+            "location": "",
             "bullets": [
-                "Redesigned website user flow and created UI mockups, reducing user drop-off by streamlining 9-step process to 4 steps",
-                "Produced 3 training videos and onboarding decks for new hires, reducing onboarding time from 2 weeks to 5 days"
+                "Built a low-cost pricing strategy and pre-launch GTM plan for Enuncify, a speech–pronunciation app.",
+                "Conducted competitor benchmarking and recommended solutions to current product and growth constraints."
             ]
         },
         {
             "id": "uuid3",
-            "company": "NamNam Foods Remote",
-            "role": "Product Marketing Intern",
-            "startDate": "Jan 2025",
-            "endDate": "March 2025",
-            "location": "Remote",
+            "company": "Student Alumni Relations Cell",
+            "role": "Strategy Analyst (Project Team)",
+            "startDate": "Sep 2025",
+            "endDate": "Nov 2025",
+            "location": "",
             "bullets": [
-                "Designed multi-channel campaign across Instagram, WhatsApp, and email, increasing sales by 47% in 2-month period (Valentine’s Campaign)",
-                "Redesigned packaging and optimized Instagram strategy using analytics, growing reach by 83% and followers by 15%"
+                "Benchmarked global alumni engagement models to identify relevant best practices.",
+                "Led solution brainstorming to boost alumni participation and campus engagement.",
+                "Assessed initiatives on feasibility, scalability, and institutional fit.",
+                "Developed a phased alumni engagement strategy and implementation plan."
+            ]
+        },
+        {
+            "id": "uuid4",
+            "company": "Skilled Sapiens",
+            "role": "Equity Research and Financial Modeling Analyst",
+            "startDate": "Jul 2025",
+            "endDate": "Aug 2025",
+            "location": "",
+            "bullets": [
+                "Built a complete 3-statement DCF model and performed relative valuation for listed companies.",
+                "Analyzed financial reports, forecasted income statements, and conducted sensitivity analysis.",
+                "Delivered an equity research report backed by intrinsic valuation and industry insights."
+            ]
+        },
+        {
+            "id": "uuid5",
+            "company": "BITS Hyderabad Consulting Group",
+            "role": "Consultant",
+            "startDate": "Aug 2024",
+            "endDate": "Present",
+            "location": "",
+            "bullets": [
+                "Acted as POC for a 3000+ participant national case competition, handling outreach and operations for a prize pool above Rs. 1,00,000.",
+                "POC for a consulting cohort with Big 4 and MBB professionals, overseeing sessions, speakers, and PU coordination.",
+                "Organized a product analytics competition with Togethr where participants designed features to boost Duolingo KPIs.",
+                "Facilitated ”Startup Odyssey” and ”Airline Booking Simulator” business events."
             ]
         }
     ],
     "projects": [
         {
-            "id": "uuid4",
-            "name": "Fine-tuned PM Mentor/Interviewer",
-            "description": "Product Management Interview Preparation Tool",
-            "technologies": ["Llama 7B", "Unsloth", "ChromaDB"],
-            "link": "",
-            "github": "",
-            "startDate": "November 2025",
-            "endDate": "",
-            "bullets": [
-                "Built fine-tuned Llama 7B model with RAG pipeline using Unsloth and ChromaDB for FAANG PM interview preparation",
-                "Integrated dataset of 3000+ FAANG PM questions to provide context-aware mentorship and interview simulations"
-            ]
-        },
-        {
-            "id": "uuid5",
-            "name": "Shywarma Enterprise Grade Chatbot",
-            "description": "Customer Support & Booking Bot for Hospitality",
-            "technologies": ["Redis", "RAG", "Pinecone", "Supabase"],
-            "link": "https://shywarma-chain-of-hotels.vercel.app/",
-            "github": "",
-            "startDate": "January 2026",
-            "endDate": "",
-            "bullets": [
-                "Engineered custom multi-layer caching system using Redis, reducing repeat query response times by 90% and lowering LLM token costs",
-                "Developed high-context RAG pipeline that retrieves hotel/travel data and dynamically adjusts pricing via business logic layers",
-                "Built rate-limiting middleware and content filtering systems to ensure brand safety and prevent API abuse/injection attacks"
-            ]
-        },
-        {
             "id": "uuid6",
-            "name": "VC Outreach Automation",
-            "description": "B2B Research & Personalization Engine",
-            "technologies": ["n8n", "Serper.dev", "Groq"],
+            "name": "Summer Analytics for Machine Learning and Data Science",
+            "description": "",
+            "technologies": ["Python"],
             "link": "",
             "github": "",
-            "startDate": "December 2025",
+            "startDate": "",
             "endDate": "",
             "bullets": [
-                "Architected n8n workflow to automate lead research on VCs, reducing manual research time by 90%",
-                "Implemented personalized hook generation using Groq LLMs to draft context-rich outreach emails for Seed to Series A founders"
+                "Performed exploratory data analysis on gym exercises dataset using Python"
             ]
+        },
+        {
+            "id": "uuid7",
+            "name": "HelloPM Product Management Cohort",
+            "description": "",
+            "technologies": [],
+            "link": "",
+            "github": "",
+            "startDate": "",
+            "endDate": "",
+            "bullets": []
         }
     ],
     "education": [
         {
-            "id": "uuid7",
-            "school": "BITS Pilani Hyderabad Campus",
-            "degree": "Masters",
-            "field": "Physics",
-            "startDate": "Aug 2023",
-            "endDate": "Present",
-            "grade": ""
-        },
-        {
             "id": "uuid8",
-            "school": "BITS Pilani Hyderabad Campus",
-            "degree": "Bachelors",
-            "field": "Electronics and Electrical Engineering",
-            "startDate": "Aug 2023",
-            "endDate": "Present",
+            "school": "BITS Pilani, Hyderabad Campus",
+            "degree": "Dual Degree: B.E. and M.Sc.",
+            "field": "EEE and Biological Sciences",
+            "startDate": "2024",
+            "endDate": "2029",
             "grade": ""
         }
     ],
     "responsibilities": [
         {
             "id": "uuid9",
-            "title": "President",
-            "organization": "180 Degrees Consulting, BITS Hyderabad",
+            "title": "Core Team Member",
+            "organization": "Synapsis - BITS Pilani Hyderabad Campus",
             "location": "",
-            "startDate": "Aug 2025",
+            "startDate": "Oct 2024",
             "endDate": "Present",
             "description": "",
             "bullets": [
-                "Managing team of 25+ consultants to deliver pro-bono consulting to 8+ non-profits, executing market research, GTM strategies, and pricing analysis",
-                "Launched 'Consulting 101' training program covering Automations and Lead Generation, up-skilling 130+ students across campus"
-            ]
-        },
-        {
-            "id": "uuid10",
-            "title": "Student's Anonymous Lead",
-            "organization": "National Service Scheme, BITS Hyderabad",
-            "location": "",
-            "startDate": "Aug 2025",
-            "endDate": "Present",
-            "description": "",
-            "bullets": [
-                "Leading 22-member peer support team providing confidential counseling for students facing loneliness, harassment, addiction, and depression",
-                "Organized 6 mental health awareness events reaching 300+ students and establishing campus-wide support network"
+                "Designed and executed a biology-themed ”Murder Mystery” event to boost engagement."
             ]
         }
     ],
-    "achievements": [],
+    "achievements": [
+        "Secured State Rank 4 in the State Talent Search Examination conducted by the Government of Rajasthan.",
+        "Recognized as a finalist in diverse competitions spanning multiple domains like Consulting, Product, Data Analytics, and Marketing across BITS Pilani Goa Campus, IIM Bangalore, St. Xavier’s and IIT Guwahati."
+    ],
     "skills": [
         "Python",
-        "n8n",
-        "Redis",
-        "RAG Pipelines",
-        "Vector Databases (Pinecone, ChromaDB)",
-        "Figma",
-        "Cohere",
-        "Supabase"
+        "SQL",
+        "HTML",
+        "CSS",
+        "C",
+        "C++",
+        "Jupyter",
+        "Kaggle",
+        "GitHub",
+        "Excel",
+        "Canva",
+        "AutoCAD"
     ],
-    "softSkills": []
+    "softSkills": [
+        "Public Speaking",
+        "Leadership",
+        "Problem Solving",
+        "Digital Marketing"
+    ]
 }
 ```
