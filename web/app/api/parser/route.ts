@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGroqClient, cleanLLMJson } from "@/lib/groq";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // Vercel function timeout (seconds)
 
 const SYSTEM_PROMPT = `
 You are an expert Resume Parser. 
@@ -203,6 +202,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         try {
             const bytes = await file.arrayBuffer();
             const buffer = Buffer.from(bytes);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const pdfParseModule = await import("pdf-parse") as any;
+            const pdfParse = pdfParseModule.default || pdfParseModule;
             const pdfData = await pdfParse(buffer);
             text = pdfData.text || "";
         } catch (pdfErr: unknown) {

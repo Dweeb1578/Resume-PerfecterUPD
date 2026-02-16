@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGroqClient, cleanLLMJson } from "@/lib/groq";
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
         const parsedData = await req.json();

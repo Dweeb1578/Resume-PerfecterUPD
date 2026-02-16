@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGroqClient, cleanLLMJson } from "@/lib/groq";
 
+export const maxDuration = 60;
+
 const SYSTEM_PROMPT = `
 You are a World-Class Resume Writer & Career Coach.
 Your goal is to REWRITE the provided resume data to be "Perfect".
