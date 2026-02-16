@@ -197,67 +197,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             return NextResponse.json({ error: "No file provided" }, { status: 400 });
         }
 
-        // 1. Extract text from PDF using pdf-parse
+        // 1. Extract text from PDF using unpdf (serverless-compatible)
         let text: string;
         try {
             const bytes = await file.arrayBuffer();
             const uint8 = new Uint8Array(bytes);
-
-            // Polyfill browser APIs that pdfjs-dist checks at load time
-            // (not actually used for text extraction, only for rendering)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const g = globalThis as any;
-            if (!g.DOMMatrix) {
-                g.DOMMatrix = class DOMMatrix {
-                    m11 = 1; m12 = 0; m13 = 0; m14 = 0;
-                    m21 = 0; m22 = 1; m23 = 0; m24 = 0;
-                    m31 = 0; m32 = 0; m33 = 1; m34 = 0;
-                    m41 = 0; m42 = 0; m43 = 0; m44 = 1;
-                    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
-                    is2D = true; isIdentity = true;
-                    inverse() { return new DOMMatrix(); }
-                    multiply() { return new DOMMatrix(); }
-                    scale() { return new DOMMatrix(); }
-                    translate() { return new DOMMatrix(); }
-                    transformPoint() { return { x: 0, y: 0, z: 0, w: 1 }; }
-                };
-            }
-            if (!g.Path2D) {
-                g.Path2D = class Path2D { };
-            }
-
-            // Use pdfjs-dist legacy build (designed for Node.js, no web worker needed)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs") as any;
-            const getDoc = pdfjsLib.getDocument || pdfjsLib.default?.getDocument;
-            if (!getDoc) {
-                throw new Error("pdfjs-dist getDocument not found. Keys: " + Object.keys(pdfjsLib).join(", "));
-            }
-
-            // Point worker to the actual worker module (pdfjs-dist uses this as an import path)
-            if (pdfjsLib.GlobalWorkerOptions) {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = "pdfjs-dist/legacy/build/pdf.worker.mjs";
-            }
-
-            const loadingTask = getDoc({
-                data: uint8,
-                useWorkerFetch: false,
-                isEvalSupported: false,
-                useSystemFonts: true,
-                disableAutoFetch: true,
-                disableStream: true,
-            });
-            const pdfDoc = await loadingTask.promise;
-
-            const textParts: string[] = [];
-            for (let i = 1; i <= pdfDoc.numPages; i++) {
-                const page = await pdfDoc.getPage(i);
-                const content = await page.getTextContent();
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const pageText = content.items.map((item: any) => item.str).join(" ");
-                textParts.push(pageText);
-            }
-            text = textParts.join("\n");
+            const { extractText } = await import("unpdf");
+            const result = await extractText(uint8);
+            text = (result.text || []).join("\n");
         } catch (pdfErr: unknown) {
             console.error("PDF extraction failed:", pdfErr);
             return NextResponse.json(
