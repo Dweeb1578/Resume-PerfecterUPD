@@ -199,11 +199,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
 
         // 1. Extract text from PDF using pdf-parse
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        const pdfData = await pdfParse(buffer);
-        let text: string = pdfData.text || "";
+        let text: string;
+        try {
+            const bytes = await file.arrayBuffer();
+            const buffer = Buffer.from(bytes);
+            const pdfData = await pdfParse(buffer);
+            text = pdfData.text || "";
+        } catch (pdfErr: unknown) {
+            console.error("PDF extraction failed:", pdfErr);
+            return NextResponse.json(
+                { error: "PDF extraction failed", details: (pdfErr as Error).message },
+                { status: 500 }
+            );
+        }
 
         if (!text.trim()) {
             return NextResponse.json({ error: "No text extracted from PDF" }, { status: 400 });
@@ -212,26 +220,42 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         console.log("Extracted text length:", text.length);
 
         // 2. Call Groq LLM to parse the resume
-        const client = getGroqClient();
-
-        const completion = await client.chat.completions.create({
-            messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: `Resume Text:\n${text}` },
-            ],
-            model: "llama-3.3-70b-versatile",
-            temperature: 0,
-            stream: false,
-        });
-
-        const rawResult = completion.choices[0]?.message?.content;
-        if (!rawResult) {
-            return NextResponse.json({ error: "No response from LLM" }, { status: 500 });
+        let rawResult: string;
+        try {
+            const client = getGroqClient();
+            const completion = await client.chat.completions.create({
+                messages: [
+                    { role: "system", content: SYSTEM_PROMPT },
+                    { role: "user", content: `Resume Text:\n${text}` },
+                ],
+                model: "llama-3.3-70b-versatile",
+                temperature: 0,
+                stream: false,
+            });
+            rawResult = completion.choices[0]?.message?.content || "";
+            if (!rawResult) {
+                return NextResponse.json({ error: "No response from LLM" }, { status: 500 });
+            }
+        } catch (groqErr: unknown) {
+            console.error("Groq API call failed:", groqErr);
+            return NextResponse.json(
+                { error: "LLM API call failed", details: (groqErr as Error).message },
+                { status: 500 }
+            );
         }
 
         // 3. Clean and parse JSON
-        const cleanedJson = cleanLLMJson(rawResult);
-        const json = JSON.parse(cleanedJson);
+        let json: Record<string, unknown>;
+        try {
+            const cleanedJson = cleanLLMJson(rawResult);
+            json = JSON.parse(cleanedJson);
+        } catch (jsonErr: unknown) {
+            console.error("JSON parsing failed:", jsonErr);
+            return NextResponse.json(
+                { error: "Failed to parse LLM response as JSON", details: (jsonErr as Error).message },
+                { status: 500 }
+            );
+        }
 
         if (json.error) {
             return NextResponse.json({ error: json.error }, { status: 400 });
@@ -242,14 +266,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             ...item,
             id: (item.id && item.id !== "uuid" && item.id !== "") ? item.id : Math.random().toString(36).substr(2, 9),
         });
-        if (json.experience) json.experience = json.experience.map(addId);
-        if (json.projects) json.projects = json.projects.map(addId);
-        if (json.education) json.education = json.education.map(addId);
-        if (json.responsibilities) json.responsibilities = json.responsibilities.map(addId);
+        if (json.experience) json.experience = (json.experience as Record<string, unknown>[]).map(addId);
+        if (json.projects) json.projects = (json.projects as Record<string, unknown>[]).map(addId);
+        if (json.education) json.education = (json.education as Record<string, unknown>[]).map(addId);
+        if (json.responsibilities) json.responsibilities = (json.responsibilities as Record<string, unknown>[]).map(addId);
 
         // 5. Post-process: Strip trailing "Remote" from company names
         if (json.experience) {
-            json.experience = json.experience.map((exp: Record<string, unknown>) => {
+            json.experience = (json.experience as Record<string, unknown>[]).map((exp: Record<string, unknown>) => {
                 const company = (exp.company as string) || "";
                 if (company.match(/\s+Remote$/i)) {
                     return {
@@ -263,18 +287,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }
 
         // 6. Post-process: Regex fallback for URLs
-        if (!json.profile?.linkedin) {
+        const profile = (json.profile || {}) as Record<string, unknown>;
+        if (!profile.linkedin) {
             const linkedinMatch = text.match(/(https?:\/\/)?(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/);
             if (linkedinMatch) {
-                if (!json.profile) json.profile = {};
-                json.profile.linkedin = linkedinMatch[0];
+                profile.linkedin = linkedinMatch[0];
+                json.profile = profile;
             }
         }
-        if (!json.profile?.github) {
+        if (!profile.github) {
             const githubMatch = text.match(/(https?:\/\/)?(www\.)?github\.com\/[a-zA-Z0-9_-]+/);
             if (githubMatch) {
-                if (!json.profile) json.profile = {};
-                json.profile.github = githubMatch[0];
+                profile.github = githubMatch[0];
+                json.profile = profile;
             }
         }
 
