@@ -187,6 +187,13 @@ export function ChatInterface({ onResumeUpdate, resumeData }: ChatInterfaceProps
         const file = e.target.files?.[0];
         if (!file) return;
 
+        // Vercel has a ~4.5MB body size limit for serverless functions
+        const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
+        if (file.size > MAX_FILE_SIZE) {
+            alert(`PDF too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Please compress your PDF to under 4MB.`);
+            return;
+        }
+
         setIsUploading(true);
         const formData = new FormData();
         formData.append("file", file);
